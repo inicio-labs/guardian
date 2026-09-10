@@ -179,6 +179,10 @@ const result = await client.pushDelta({
 });
 ```
 
+ECDSA proposal signatures may additionally set `messageFormat: 'eip712'`.
+When omitted, the format is `raw`. Unknown values are rejected at the client
+boundary; GUARDIAN acknowledgement signatures are unaffected.
+
 ### Get Deltas
 
 ```typescript

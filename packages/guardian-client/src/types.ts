@@ -37,11 +37,14 @@ export interface EcdsaSignature {
   scheme: 'ecdsa';
   signature: string;
   publicKey?: string;
+  /** Message encoding used by the signer. Absent values are treated as raw for compatibility. */
+  messageFormat?: EcdsaMessageFormat;
 }
 
 export type ProposalSignature = FalconSignature | EcdsaSignature;
 
 export type SignatureScheme = 'falcon' | 'ecdsa';
+export type EcdsaMessageFormat = 'raw' | 'eip712';
 
 export type AuthConfig =
   | {

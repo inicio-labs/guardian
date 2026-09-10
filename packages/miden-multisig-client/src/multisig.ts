@@ -2068,6 +2068,14 @@ export class Multisig {
       }
 
       const signerCommitment = Word.fromHex(signerCommitmentHex);
+      if (
+        cosignerSig.signature.scheme === 'ecdsa' &&
+        cosignerSig.signature.messageFormat === 'eip712'
+      ) {
+        throw new Error(
+          'EIP-712 proposal execution requires a Miden SDK WASM build containing the extended multisig authenticator',
+        );
+      }
       const sigBytes = signatureHexToBytes(
         cosignerSig.signature.signature,
         cosignerSig.signature.scheme,
@@ -2223,6 +2231,14 @@ export class Multisig {
       }
 
       const signerCommitment = Word.fromHex(signerCommitmentHex);
+      if (
+        cosignerSig.signature.scheme === 'ecdsa' &&
+        cosignerSig.signature.messageFormat === 'eip712'
+      ) {
+        throw new Error(
+          'EIP-712 proposal execution requires a Miden SDK WASM build containing the extended multisig authenticator',
+        );
+      }
       const sigBytes = signatureHexToBytes(
         cosignerSig.signature.signature,
         cosignerSig.signature.scheme,
@@ -2324,6 +2340,8 @@ export class Multisig {
             signatureHex: s.signature.signature,
             scheme: s.signature.scheme,
             publicKey: s.signature.scheme === 'ecdsa' ? s.signature.publicKey : undefined,
+            messageFormat:
+              s.signature.scheme === 'ecdsa' ? s.signature.messageFormat ?? 'raw' : undefined,
             timestamp: s.timestamp,
           }))
         : [];
@@ -2360,6 +2378,8 @@ export class Multisig {
         signatureHex: s.signature.signature,
         scheme: s.signature.scheme,
         publicKey: s.signature.scheme === 'ecdsa' ? s.signature.publicKey : undefined,
+        messageFormat:
+          s.signature.scheme === 'ecdsa' ? s.signature.messageFormat ?? 'raw' : undefined,
         timestamp: s.timestamp,
       })),
       metadata: proposal.metadata,

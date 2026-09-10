@@ -3566,6 +3566,7 @@ dependencies = [
  "async-trait",
  "base64",
  "hex",
+ "miden-core-lib",
  "miden-protocol",
  "miden-standards",
  "prost",

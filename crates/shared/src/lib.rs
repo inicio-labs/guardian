@@ -28,6 +28,34 @@ pub enum SignatureScheme {
     Ecdsa,
 }
 
+/// Message encoding used by an ECDSA proposal signature.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum EcdsaMessageFormat {
+    /// Sign the transaction-summary commitment directly.
+    #[default]
+    Raw,
+    /// Sign the EIP-712 `MidenTransaction` object containing the summary commitment.
+    Eip712,
+}
+
+impl EcdsaMessageFormat {
+    pub fn from(value: &str) -> Result<Self, String> {
+        match value {
+            value if value.eq_ignore_ascii_case("raw") => Ok(Self::Raw),
+            value if value.eq_ignore_ascii_case("eip712") => Ok(Self::Eip712),
+            value => Err(format!("unsupported ECDSA message format: {value}")),
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Raw => "raw",
+            Self::Eip712 => "eip712",
+        }
+    }
+}
+
 impl SignatureScheme {
     pub fn from(ack_scheme: &str) -> Result<Self, String> {
         match ack_scheme {
@@ -113,6 +141,45 @@ impl SignatureScheme {
 
         Ok((key, values))
     }
+
+    /// Builds the advice entry for an EIP-712 transaction-summary signature.
+    pub fn build_eip712_signature_advice_entry(
+        self,
+        pubkey_commitment: Word,
+        tx_summary_commitment: Word,
+        signature: &AccountSignature,
+        public_key_hex: Option<&str>,
+    ) -> Result<(Word, Vec<Felt>), String> {
+        let AccountSignature::EcdsaK256Keccak(ecdsa_signature) = signature else {
+            return Err("EIP-712 message format requires an ECDSA signature".to_string());
+        };
+        if self != Self::Ecdsa {
+            return Err("EIP-712 message format requires the ecdsa scheme".to_string());
+        }
+
+        let public_key_hex = public_key_hex.ok_or_else(|| {
+            "ECDSA signature requires public key for advice preparation".to_string()
+        })?;
+        let public_key = parse_ecdsa_public_key_hex(public_key_hex)?;
+        let actual_commitment = public_key.to_commitment();
+        if actual_commitment != pubkey_commitment {
+            return Err(format!(
+                "ECDSA public key commitment mismatch: expected {}, got {}",
+                word_to_hex(pubkey_commitment),
+                word_to_hex(actual_commitment)
+            ));
+        }
+
+        let raw_key = signature_advice_key(pubkey_commitment, tx_summary_commitment);
+        // Keep this domain word synchronized with
+        // `miden::standards::auth::eip712::EIP712_SIGNATURE_KEY_DOMAIN`.
+        let domain = Word::from([0x3231_3745u32; 4]);
+        let key = Hasher::merge(&[raw_key, domain]);
+        let values =
+            miden_core_lib::dsa::ecdsa_k256_keccak::encode_signature(&public_key, ecdsa_signature);
+
+        Ok((key, values))
+    }
 }
 
 impl std::fmt::Display for SignatureScheme {
@@ -163,6 +230,9 @@ pub enum ProposalSignature {
         /// Hex-encoded ECDSA public key (required for signature preparation)
         #[serde(default, skip_serializing_if = "Option::is_none")]
         public_key: Option<String>,
+        /// Encoding of the message presented to the ECDSA signer.
+        #[serde(default, skip_serializing_if = "is_raw_message_format")]
+        message_format: EcdsaMessageFormat,
     },
 }
 
@@ -178,7 +248,21 @@ impl ProposalSignature {
             SignatureScheme::Ecdsa => ProposalSignature::Ecdsa {
                 signature,
                 public_key,
+                message_format: EcdsaMessageFormat::Raw,
             },
+        }
+    }
+
+    /// Creates an ECDSA signature with an explicit message format.
+    pub fn ecdsa(
+        signature: String,
+        public_key: Option<String>,
+        message_format: EcdsaMessageFormat,
+    ) -> Self {
+        Self::Ecdsa {
+            signature,
+            public_key,
+            message_format,
         }
     }
 
@@ -189,6 +273,18 @@ impl ProposalSignature {
             _ => None,
         }
     }
+
+    /// Returns the ECDSA message format. Falcon signatures always use the raw Miden word format.
+    pub const fn message_format(&self) -> EcdsaMessageFormat {
+        match self {
+            Self::Falcon { .. } => EcdsaMessageFormat::Raw,
+            Self::Ecdsa { message_format, .. } => *message_format,
+        }
+    }
+}
+
+const fn is_raw_message_format(format: &EcdsaMessageFormat) -> bool {
+    matches!(format, EcdsaMessageFormat::Raw)
 }
 
 /// Delta payload structure containing transaction summary and signatures
@@ -423,6 +519,51 @@ mod tests {
 
         assert_eq!(key, Hasher::hash_elements(&elements));
         assert!(!values.is_empty());
+    }
+
+    #[test]
+    fn signature_scheme_builds_domain_separated_eip712_advice_entry() {
+        let secret_key = EcdsaSecretKey::new();
+        let public_key = secret_key.public_key();
+        let public_key_hex = format!("0x{}", ::hex::encode(public_key.to_bytes()));
+        let commitment = public_key.to_commitment();
+        let tx_summary_commitment = Word::from([1u32, 2, 3, 4]);
+        let signature = AccountSignature::EcdsaK256Keccak(secret_key.sign_prehash([7u8; 32]));
+
+        let (key, values) = SignatureScheme::Ecdsa
+            .build_eip712_signature_advice_entry(
+                commitment,
+                tx_summary_commitment,
+                &signature,
+                Some(&public_key_hex),
+            )
+            .unwrap();
+
+        let raw_key = signature_advice_key(commitment, tx_summary_commitment);
+        let expected_key = Hasher::merge(&[raw_key, Word::from([0x3231_3745u32; 4])]);
+        assert_eq!(key, expected_key);
+        assert_ne!(key, raw_key);
+        assert_eq!(values.len(), 32);
+    }
+
+    #[test]
+    fn proposal_signature_message_format_is_backward_compatible() {
+        let raw: ProposalSignature = serde_json::from_value(serde_json::json!({
+            "scheme": "ecdsa",
+            "signature": "0x01",
+            "public_key": "0x02"
+        }))
+        .unwrap();
+        assert_eq!(raw.message_format(), EcdsaMessageFormat::Raw);
+
+        let eip712: ProposalSignature = serde_json::from_value(serde_json::json!({
+            "scheme": "ecdsa",
+            "signature": "0x01",
+            "public_key": "0x02",
+            "message_format": "eip712"
+        }))
+        .unwrap();
+        assert_eq!(eip712.message_format(), EcdsaMessageFormat::Eip712);
     }
 
     #[test]

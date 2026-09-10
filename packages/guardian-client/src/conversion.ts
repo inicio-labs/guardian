@@ -10,6 +10,7 @@ import type {
   HistoryNote,
   HistoryPage,
   LookupResponse,
+  EcdsaMessageFormat,
   ProposalSignature,
   ProposalMetadata,
   SignProposalRequest,
@@ -32,6 +33,16 @@ import type {
   ServerSignProposalRequest,
   ServerStateObject,
 } from './server-types.js';
+
+function parseEcdsaMessageFormat(value: unknown): EcdsaMessageFormat {
+  if (value === undefined || value === 'raw') {
+    return 'raw';
+  }
+  if (value === 'eip712') {
+    return 'eip712';
+  }
+  throw new Error(`Unsupported ECDSA message format: ${String(value)}`);
+}
 
 type ServerProposalDeltaPayload = {
   tx_summary: { data: string };
@@ -64,6 +75,7 @@ export function fromServerSignature(signature: ServerProposalSignature): Proposa
       scheme: 'ecdsa',
       signature: signature.signature,
       publicKey: signature.public_key,
+      messageFormat: parseEcdsaMessageFormat(signature.message_format),
     };
   }
   return signature;
@@ -179,6 +191,7 @@ export function toServerSignature(sig: ProposalSignature): ServerProposalSignatu
       scheme: 'ecdsa',
       signature: sig.signature,
       public_key: sig.publicKey,
+      ...(sig.messageFormat === 'eip712' ? { message_format: 'eip712' as const } : {}),
     };
   }
   return sig;

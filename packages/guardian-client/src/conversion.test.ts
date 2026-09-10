@@ -5,6 +5,7 @@ import {
   fromServerDeltaObject,
   fromServerDeltaStatus,
   fromServerProposalMetadata,
+  fromServerSignature,
   fromServerStateObject,
   toServerConfigureRequest,
   toServerCosignerSignature,
@@ -12,6 +13,7 @@ import {
   toServerDeltaStatus,
   toServerExecutionDelta,
   toServerProposalMetadata,
+  toServerSignature,
   toServerSignProposalRequest,
 } from './conversion.js';
 import type {
@@ -48,6 +50,50 @@ describe('conversion', () => {
         signature: { scheme: 'falcon', signature: '0x123' },
         timestamp: '2024-01-01T00:00:00Z',
       });
+    });
+
+    it('round-trips an EIP-712 ECDSA signature format', () => {
+      const server: ServerCosignerSignature = {
+        signer_id: '0xabc',
+        signature: {
+          scheme: 'ecdsa',
+          signature: '0x123',
+          public_key: '0x456',
+          message_format: 'eip712',
+        },
+        timestamp: '2024-01-01T00:00:00Z',
+      };
+
+      const converted = fromServerCosignerSignature(server);
+      expect(converted.signature).toEqual({
+        scheme: 'ecdsa',
+        signature: '0x123',
+        publicKey: '0x456',
+        messageFormat: 'eip712',
+      });
+      expect(toServerCosignerSignature(converted)).toEqual(server);
+    });
+
+    it('defaults an omitted ECDSA message format to raw without writing it back', () => {
+      const converted = fromServerSignature({
+        scheme: 'ecdsa',
+        signature: '0x123',
+        public_key: '0x456',
+      });
+
+      expect(converted).toMatchObject({ messageFormat: 'raw' });
+      expect(toServerSignature(converted)).not.toHaveProperty('message_format');
+    });
+
+    it('rejects an unknown ECDSA message format at the wire boundary', () => {
+      expect(() =>
+        fromServerSignature({
+          scheme: 'ecdsa',
+          signature: '0x123',
+          public_key: '0x456',
+          message_format: 'personal_sign',
+        } as never),
+      ).toThrow('Unsupported ECDSA message format: personal_sign');
     });
 
     it('converts pending DeltaStatus', () => {

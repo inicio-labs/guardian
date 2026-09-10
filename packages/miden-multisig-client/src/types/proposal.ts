@@ -1,4 +1,8 @@
-import type { ProposalSignature, SignatureScheme } from '@openzeppelin/guardian-client';
+import type {
+  EcdsaMessageFormat,
+  ProposalSignature,
+  SignatureScheme,
+} from '@openzeppelin/guardian-client';
 import type { ProcedureName } from '../procedures.js';
 
 /**
@@ -185,6 +189,7 @@ export interface ExportedProposal {
     signatureHex: string;
     scheme?: SignatureScheme;
     publicKey?: string;
+    messageFormat?: EcdsaMessageFormat;
     timestamp?: string;
   }>;
   metadata: ProposalMetadata;
@@ -197,4 +202,5 @@ export interface SignTransactionProposalParams {
   signature: string;
   publicKey?: string;
   scheme?: SignatureScheme;
+  messageFormat?: EcdsaMessageFormat;
 }

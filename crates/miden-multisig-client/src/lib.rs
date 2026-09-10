@@ -113,7 +113,7 @@ pub use export::{EXPORT_VERSION, ExportedMetadata, ExportedProposal, ExportedSig
 pub use error::{MultisigError, Result};
 
 // Re-exports for convenience
-pub use guardian_shared::SignatureScheme;
+pub use guardian_shared::{EcdsaMessageFormat, ProposalSignature, SignatureScheme};
 pub use miden_client::rpc::Endpoint;
 pub use miden_protocol::Word;
 pub use miden_protocol::account::AccountId;

@@ -35,7 +35,9 @@
 //! }
 //! ```
 pub use guardian_shared::hex::{FromHex, IntoHex};
-pub use guardian_shared::{FromJson, ToJson};
+pub use guardian_shared::{
+    EcdsaMessageFormat, FromJson, ProposalSignature, SignatureScheme, ToJson,
+};
 
 mod proto {
     tonic::include_proto!("guardian");

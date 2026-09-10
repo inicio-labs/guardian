@@ -369,6 +369,7 @@ mod tests {
         let proposal_signature = ProposalSignature::Ecdsa {
             signature: dummy_sig.clone(),
             public_key: Some(signer.pubkey_hex.clone()),
+            message_format: guardian_shared::EcdsaMessageFormat::Raw,
         };
         let request_body = serde_json::json!({
             "account_id": account_id.clone(),
@@ -403,9 +404,11 @@ mod tests {
                     ProposalSignature::Ecdsa {
                         signature,
                         public_key,
+                        message_format,
                     } => {
                         assert_eq!(*signature, dummy_sig);
                         assert_eq!(public_key.as_deref(), Some(signer.pubkey_hex.as_str()));
+                        assert_eq!(*message_format, guardian_shared::EcdsaMessageFormat::Raw);
                     }
                     ProposalSignature::Falcon { .. } => {
                         panic!("expected ECDSA signature")

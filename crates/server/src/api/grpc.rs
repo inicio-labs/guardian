@@ -6,6 +6,7 @@ use crate::services::{
     GetStateParams, LookupAccountParams, PushDeltaParams,
 };
 use crate::state::AppState;
+use guardian_shared::EcdsaMessageFormat;
 use guardian_shared::SignatureScheme;
 use guardian_shared::auth_request_payload::AuthRequestPayload;
 use prost::Message;
@@ -595,14 +596,18 @@ fn proposal_signature_to_proto(signature: &ProposalSignature) -> guardian::Propo
             scheme: "falcon".to_string(),
             signature: signature.clone(),
             public_key: None,
+            message_format: None,
         },
         ProposalSignature::Ecdsa {
             signature,
             public_key,
+            message_format,
         } => guardian::ProposalSignature {
             scheme: "ecdsa".to_string(),
             signature: signature.clone(),
             public_key: public_key.clone(),
+            message_format: (*message_format == EcdsaMessageFormat::Eip712)
+                .then(|| message_format.as_str().to_string()),
         },
     }
 }
@@ -618,6 +623,10 @@ fn proto_signature_to_internal(
         "ecdsa" => Ok(ProposalSignature::Ecdsa {
             signature: signature.signature,
             public_key: signature.public_key,
+            message_format: EcdsaMessageFormat::from(
+                signature.message_format.as_deref().unwrap_or("raw"),
+            )
+            .map_err(Status::invalid_argument)?,
         }),
         other => Err(Status::invalid_argument(format!(
             "Unknown signature scheme: {other}"
@@ -1234,6 +1243,7 @@ mod tests {
                 scheme: "falcon".to_string(),
                 signature: dummy_sig,
                 public_key: None,
+                message_format: None,
             }),
         };
 

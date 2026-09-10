@@ -9,6 +9,7 @@ export type {
   Signer,
   FalconSignature,
   EcdsaSignature,
+  EcdsaMessageFormat,
   ProposalSignature,
   SignatureScheme,
   CosignerSignature,

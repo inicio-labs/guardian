@@ -2,6 +2,25 @@
 
 An SDK for creating and managing multisignature accounts on the Miden network. Available for both **TypeScript** (web/browser) and **Rust** (native/server) environments.
 
+## EIP-712 prototype scope
+
+The Rust 0.16 flow can combine raw ECDSA and EIP-712 ECDSA approver
+signatures in one transaction. The typed message is
+`MidenTransaction(bytes32 txSummaryHash)` in the `Miden Multisig` domain;
+GUARDIAN acknowledgements remain raw. Signature format is explicit on each
+proposal signature and absent means raw for backward compatibility.
+
+This is currently a two-pass flow: derive the transaction summary, obtain the
+external signature, then execute with the signature already in the advice map.
+The standard transaction authenticator does not yet request a hardware-wallet
+EIP-712 signature during VM execution. Browser execution also remains disabled
+until the published Miden WASM contains the same authenticator component.
+
+The hash-only message is suitable for the first interoperability prototype,
+not final clear signing: it does not independently display or bind account and
+network fields. A production schema should add those fields before this mode
+is enabled by default.
+
 > New to Guardian? Read [`docs/CONCEPTS.md`](./CONCEPTS.md) for the trust
 > model and state/delta lifecycle, and
 > [`docs/architecture/services.md`](./architecture/services.md) for the

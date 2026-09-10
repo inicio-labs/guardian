@@ -191,6 +191,15 @@ if let Some(delta) = &push_response.delta {
 
 The server signs the `new_commitment` (the resulting commitment after applying the delta) to provide cryptographic proof that it processed the delta correctly.
 
+## Miden proposal signature formats
+
+`ProposalSignature::ecdsa` can transport an externally produced ECDSA
+signature as either `EcdsaMessageFormat::Raw` or
+`EcdsaMessageFormat::Eip712`. The EIP-712 form signs
+`MidenTransaction(bytes32 txSummaryHash)` in the `Miden Multisig` domain.
+Omitting the format remains backward-compatible and means raw. This flag does
+not change GUARDIAN acknowledgement signatures, which remain raw.
+
 ### Example
 
 ```bash

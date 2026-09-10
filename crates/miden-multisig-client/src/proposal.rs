@@ -8,7 +8,7 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use guardian_client::DeltaObject;
 use guardian_shared::FromJson;
 use guardian_shared::hex::FromHex;
-use guardian_shared::{ProposalSignature, SignatureScheme};
+use guardian_shared::{EcdsaMessageFormat, ProposalSignature, SignatureScheme};
 use miden_protocol::account::AccountId;
 use miden_protocol::crypto::dsa::ecdsa_k256_keccak::{
     PublicKey as EcdsaPublicKey, Signature as EcdsaSignature,
@@ -614,6 +614,7 @@ pub struct ProposalSignatureEntry {
     pub signature_hex: String,
     pub scheme: SignatureScheme,
     pub public_key_hex: Option<String>,
+    pub message_format: EcdsaMessageFormat,
 }
 
 impl ProposalSignatureEntry {
@@ -623,6 +624,11 @@ impl ProposalSignatureEntry {
         let signature_hex = ensure_hex_prefix(&self.signature_hex);
         match self.scheme {
             SignatureScheme::Falcon => {
+                if self.message_format != EcdsaMessageFormat::Raw {
+                    return Err(MultisigError::Signature(
+                        "EIP-712 message format requires the ecdsa scheme".to_string(),
+                    ));
+                }
                 Poseidon2FalconSignature::from_hex(&signature_hex).map_err(|e| {
                     MultisigError::Signature(format!("invalid proposal signature: {}", e))
                 })?;
@@ -755,17 +761,23 @@ impl Proposal {
         let mut seen_signers = HashSet::new();
         let mut signatures = Vec::with_capacity(payload.signatures.len());
         for signature in &payload.signatures {
-            let (scheme, signature_hex, public_key_hex) = match &signature.signature {
-                ProposalSignature::Falcon { signature } => {
-                    (SignatureScheme::Falcon, signature.clone(), None)
-                }
+            let (scheme, signature_hex, public_key_hex, message_format) = match &signature.signature
+            {
+                ProposalSignature::Falcon { signature } => (
+                    SignatureScheme::Falcon,
+                    signature.clone(),
+                    None,
+                    EcdsaMessageFormat::Raw,
+                ),
                 ProposalSignature::Ecdsa {
                     signature,
                     public_key,
+                    message_format,
                 } => (
                     SignatureScheme::Ecdsa,
                     signature.clone(),
                     public_key.clone(),
+                    *message_format,
                 ),
             };
 
@@ -774,6 +786,7 @@ impl Proposal {
                 signature_hex,
                 scheme,
                 public_key_hex,
+                message_format,
             };
             entry.validate()?;
 

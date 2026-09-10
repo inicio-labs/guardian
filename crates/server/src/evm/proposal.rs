@@ -341,7 +341,17 @@ impl TryFrom<&CosignerSignature> for EvmProposalSignature {
 
     fn try_from(value: &CosignerSignature) -> Result<Self> {
         let signature = match &value.signature {
-            ProposalSignature::Ecdsa { signature, .. } => normalize_signature(signature)?,
+            ProposalSignature::Ecdsa {
+                signature,
+                message_format: guardian_shared::EcdsaMessageFormat::Raw,
+                ..
+            } => normalize_signature(signature)?,
+            ProposalSignature::Ecdsa { .. } => {
+                return Err(GuardianError::InvalidProposalSignature(
+                    "EIP-712 transaction-summary signatures are only valid for Miden proposals"
+                        .to_string(),
+                ));
+            }
             ProposalSignature::Falcon { .. } => {
                 return Err(GuardianError::InvalidProposalSignature(
                     "EVM proposals require ECDSA signatures".to_string(),
@@ -363,6 +373,7 @@ impl From<&EvmProposalSignature> for CosignerSignature {
             signature: ProposalSignature::Ecdsa {
                 signature: value.signature.clone(),
                 public_key: None,
+                message_format: guardian_shared::EcdsaMessageFormat::Raw,
             },
             timestamp: value.signed_at.to_string(),
         }

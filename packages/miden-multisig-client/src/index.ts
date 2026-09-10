@@ -216,6 +216,9 @@ export type {
 
   // Signature types
   FalconSignature,
+  EcdsaSignature,
+  EcdsaMessageFormat,
+  ProposalSignature,
   Signer,
   SignatureScheme,
 

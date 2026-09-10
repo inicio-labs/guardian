@@ -112,6 +112,17 @@ export class ProposalFactory {
     const signatures = new ProposalSignatures(
       exported.signatures.map((signature) => {
         const scheme = signature.scheme ?? 'falcon';
+        const messageFormat = signature.messageFormat ?? 'raw';
+        if (messageFormat !== 'raw' && messageFormat !== 'eip712') {
+          throw new Error(
+            `Invalid imported proposal signatures: unsupported message format ${String(messageFormat)}`,
+          );
+        }
+        if (scheme !== 'ecdsa' && messageFormat !== 'raw') {
+          throw new Error(
+            `Invalid imported proposal signatures: EIP-712 message format requires the ecdsa scheme`,
+          );
+        }
         if (scheme === 'ecdsa' && !signature.publicKey) {
           throw new Error(
             `Invalid imported proposal signatures: ECDSA signature for ${signature.commitment} is missing publicKey`,
@@ -126,6 +137,7 @@ export class ProposalFactory {
                   scheme,
                   signature: signature.signatureHex,
                   publicKey: signature.publicKey,
+                  messageFormat,
                 }
               : {
                   scheme,

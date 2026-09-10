@@ -108,6 +108,10 @@ impl MultisigClient {
                     signature: sig.signature.clone(),
                     scheme,
                     public_key_hex: sig.public_key.clone(),
+                    message_format: guardian_shared::EcdsaMessageFormat::from(
+                        sig.message_format.as_deref().unwrap_or("raw"),
+                    )
+                    .map_err(MultisigError::InvalidConfig)?,
                 });
             }
         }

@@ -14,6 +14,15 @@ Miden multisig accounts store their authentication logic on-chain, but **their s
 2. Cosigners fetch pending deltas, verify details locally, sign the transaction summary, and push signatures back to GUARDIAN.
 3. Once ready, any cosigner builds the final transaction using all cosigner signatures + the GUARDIAN ack, executes it on-chain.
 
+### EIP-712 status
+
+Proposal import/export and Guardian transport preserve the per-ECDSA-signature
+`messageFormat` (`'raw'` or `'eip712'`). The current browser Miden WASM does
+not yet contain the modified multisig authenticator, so browser execution
+fails closed when an EIP-712 signature is present. The normal browser signing
+methods continue to create raw signatures. Use the Rust execution path for the
+first EIP-712 prototype.
+
 ## Installation
 
 ```bash

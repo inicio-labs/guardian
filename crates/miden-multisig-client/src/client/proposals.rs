@@ -297,6 +297,7 @@ impl MultisigClient {
                 signature_hex: signature.signature_hex,
                 scheme: signature.scheme,
                 public_key_hex: signature.public_key_hex,
+                message_format: signature.message_format,
             })
             .collect();
 
@@ -558,6 +559,7 @@ impl MultisigClient {
                 signature_hex: signature.signature_hex,
                 scheme: signature.scheme,
                 public_key_hex: signature.public_key_hex,
+                message_format: signature.message_format,
             })
             .collect();
         signature_inputs.sort_by(|a, b| a.signer_commitment.cmp(&b.signer_commitment));

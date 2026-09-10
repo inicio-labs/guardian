@@ -15,6 +15,16 @@ Miden multisig accounts store their authentication logic on-chain, but **their s
 2. Cosigners fetch pending deltas, verify details locally, sign the transaction summary, and push signatures back to GUARDIAN.
 3. Once ready, any cosigner builds the final transaction using all cosigner signatures + the GUARDIAN ack, executes it on-chain.
 
+### EIP-712 ECDSA signatures
+
+Rust proposal import and execution accept a per-signature
+`EcdsaMessageFormat`: `Raw` (the default) or `Eip712`. The EIP-712 payload is
+`MidenTransaction(bytes32 txSummaryHash)` under the `Miden Multisig` domain.
+Raw and EIP-712 ECDSA approvers may participate in the same multisig
+transaction; GUARDIAN acknowledgements stay raw. The built-in
+`sign_proposal` and `sign_imported_proposal` methods currently create raw
+signatures, so hardware-wallet signatures must be supplied externally.
+
 ## Miden compatibility
 
 This package's version and Miden's are **not** aligned. Pick the release that
