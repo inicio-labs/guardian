@@ -22,7 +22,7 @@ use super::{MultisigClient, StateVerificationResult};
 use crate::account::MultisigAccount;
 use crate::error::{MultisigError, Result};
 use crate::keystore::word_from_hex;
-use crate::procedures::ProcedureThreshold;
+use crate::procedures::{MultisigContractVersion, ProcedureThreshold};
 use crate::transaction::word_to_hex;
 
 impl MultisigClient {
@@ -105,7 +105,13 @@ impl MultisigClient {
         // Convert procedure thresholds to (Word, u32) pairs
         let overrides: Vec<(Word, u32)> = proc_threshold_overrides
             .iter()
-            .map(|pt| (pt.procedure_root(), pt.threshold))
+            .map(|pt| {
+                (
+                    pt.procedure
+                        .root_for(MultisigContractVersion::Miden016Eip712),
+                    pt.threshold,
+                )
+            })
             .collect();
 
         // Create the multisig account config

@@ -8,11 +8,10 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use guardian_client::DeltaObject;
 use guardian_shared::FromJson;
 use guardian_shared::hex::FromHex;
-use guardian_shared::{EcdsaMessageFormat, ProposalSignature, SignatureScheme};
-use miden_protocol::account::AccountId;
-use miden_protocol::crypto::dsa::ecdsa_k256_keccak::{
-    PublicKey as EcdsaPublicKey, Signature as EcdsaSignature,
+use guardian_shared::{
+    EcdsaMessageFormat, ProposalSignature, SignatureScheme, parse_ecdsa_public_key_hex,
 };
+use miden_protocol::account::AccountId;
 use miden_protocol::crypto::dsa::falcon512_poseidon2::Signature as Poseidon2FalconSignature;
 use miden_protocol::note::{Note, NoteId, NoteType};
 use miden_protocol::transaction::TransactionSummary;
@@ -634,31 +633,17 @@ impl ProposalSignatureEntry {
                 })?;
             }
             SignatureScheme::Ecdsa => {
-                let signature_bytes =
-                    hex::decode(signature_hex.trim_start_matches("0x")).map_err(|e| {
-                        MultisigError::Signature(format!("invalid ECDSA signature hex: {}", e))
-                    })?;
-                EcdsaSignature::read_from_bytes(&signature_bytes).map_err(|e| {
-                    MultisigError::Signature(format!(
-                        "invalid ECDSA proposal signature bytes: {}",
-                        e
-                    ))
-                })?;
+                self.scheme
+                    .parse_signature_hex(&signature_hex)
+                    .map_err(|e| MultisigError::Signature(format!("invalid signature: {e}")))?;
 
                 let public_key_hex = self.public_key_hex.as_ref().ok_or_else(|| {
                     MultisigError::Signature(
                         "ECDSA proposal signatures require a public key".to_string(),
                     )
                 })?;
-                let public_key_bytes = hex::decode(public_key_hex.trim_start_matches("0x"))
-                    .map_err(|e| {
-                        MultisigError::Signature(format!("invalid ECDSA public key hex: {}", e))
-                    })?;
-                EcdsaPublicKey::read_from_bytes(&public_key_bytes).map_err(|e| {
-                    MultisigError::Signature(format!(
-                        "invalid ECDSA proposal public key bytes: {}",
-                        e
-                    ))
+                parse_ecdsa_public_key_hex(public_key_hex).map_err(|e| {
+                    MultisigError::Signature(format!("invalid ECDSA public key: {e}"))
                 })?;
             }
         }
@@ -919,6 +904,7 @@ mod tests {
     use super::*;
     use miden_protocol::account::AccountStoragePatch;
     use miden_protocol::account::delta::{AccountDelta, AccountVaultDelta};
+    use miden_protocol::crypto::dsa::ecdsa_k256_keccak::SigningKey as EcdsaSecretKey;
     use miden_protocol::transaction::{InputNotes, RawOutputNotes, TransactionSummaryUserParams};
 
     fn create_test_tx_summary() -> TransactionSummary {
@@ -957,6 +943,30 @@ mod tests {
         let invalid = format!("0x{}{}", "ff".repeat(8), "00".repeat(24));
         let err = word_from_hex(&invalid).expect_err("non-canonical field element should fail");
         assert!(err.contains("invalid field element"));
+    }
+
+    #[test]
+    fn proposal_signature_accepts_ethereum_recovery_id() {
+        let mut secret_key_bytes = [0u8; 32];
+        secret_key_bytes[31] = 1;
+        let secret_key = EcdsaSecretKey::read_from_bytes(&secret_key_bytes).unwrap();
+        let public_key = secret_key.public_key();
+        let mut signature = secret_key.sign(Word::from([1u32, 2, 3, 4])).to_bytes();
+        signature[64] += 27;
+        let public_key_hex = concat!(
+            "0x0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+            "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8"
+        );
+
+        let entry = ProposalSignatureEntry {
+            signer_commitment: format!("0x{}", hex::encode(public_key.to_commitment().to_bytes())),
+            signature_hex: format!("0x{}", hex::encode(signature)),
+            scheme: SignatureScheme::Ecdsa,
+            public_key_hex: Some(public_key_hex.to_string()),
+            message_format: EcdsaMessageFormat::Eip712,
+        };
+
+        entry.validate().expect("recovery IDs 27 and 28 are valid");
     }
 
     /// A proposal without an anchor cannot be verified or executed, and a

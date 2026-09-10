@@ -10,7 +10,7 @@ use guardian_shared::ToJson;
 use super::MultisigClient;
 use crate::error::{MultisigError, Result};
 use crate::execution::{SignatureInput, build_final_transaction_request, collect_signature_advice};
-use crate::export::{EXPORT_VERSION, ExportedMetadata, ExportedProposal, ExportedSignature};
+use crate::export::{ExportedMetadata, ExportedProposal, ExportedSignature, RAW_EXPORT_VERSION};
 use crate::guardian_endpoint::verify_endpoint_commitment;
 use crate::keystore::proposal_public_key_hex;
 use crate::proposal::TransactionType;
@@ -92,7 +92,7 @@ impl MultisigClient {
         let id = crate::transaction::word_to_hex(&tx_commitment);
 
         let exported = ExportedProposal {
-            version: EXPORT_VERSION,
+            version: RAW_EXPORT_VERSION,
             account_id: account_id.to_string(),
             id,
             nonce: account.nonce() + 1,
@@ -235,6 +235,7 @@ impl MultisigClient {
             signature_inputs,
             &required_commitments,
             tx_summary_commitment,
+            account.contract_version()?,
         )?;
 
         // Build the final transaction request with all signatures

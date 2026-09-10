@@ -93,8 +93,14 @@ impl SignatureScheme {
                 Ok(AccountSignature::from(signature))
             }
             Self::Ecdsa => {
-                let signature_bytes = ::hex::decode(signature_hex.trim_start_matches("0x"))
+                let mut signature_bytes = ::hex::decode(signature_hex.trim_start_matches("0x"))
                     .map_err(|e| format!("invalid ECDSA signature hex: {}", e))?;
+                if signature_bytes.len() != 65 {
+                    return Err("ECDSA signature must be 65 bytes".to_string());
+                }
+                if matches!(signature_bytes[64], 27 | 28) {
+                    signature_bytes[64] -= 27;
+                }
                 let signature = ecdsa_k256_keccak::Signature::read_from_bytes(&signature_bytes)
                     .map_err(|e| format!("failed to parse ECDSA signature: {}", e))?;
                 Ok(AccountSignature::EcdsaK256Keccak(signature))
@@ -170,6 +176,13 @@ impl SignatureScheme {
             ));
         }
 
+        let digest = miden_standards::account::auth::eip712::transaction_summary_digest(
+            tx_summary_commitment,
+        );
+        if !public_key.verify_prehash(digest, ecdsa_signature) {
+            return Err("invalid EIP-712 transaction-summary signature".to_string());
+        }
+
         let key = miden_standards::account::auth::eip712::transaction_summary_signature_key(
             pubkey_commitment.into(),
             tx_summary_commitment,
@@ -206,12 +219,23 @@ fn signature_advice_key(pubkey_commitment: Word, message: Word) -> Word {
     Hasher::hash_elements(&elements)
 }
 
-fn parse_ecdsa_public_key_hex(
+/// Parses a compressed or uncompressed SEC1 ECDSA public key.
+pub fn parse_ecdsa_public_key_hex(
     public_key_hex: &str,
 ) -> Result<ecdsa_k256_keccak::PublicKey, String> {
     let public_key_bytes = ::hex::decode(public_key_hex.trim_start_matches("0x"))
         .map_err(|e| format!("invalid ECDSA public key hex: {}", e))?;
-    ecdsa_k256_keccak::PublicKey::read_from_bytes(&public_key_bytes)
+    match public_key_bytes.len() {
+        33 => {}
+        65 if public_key_bytes[0] == 0x04 => {}
+        65 => return Err("uncompressed ECDSA public key must start with 0x04".to_string()),
+        _ => return Err("ECDSA public key must be 33 or 65 bytes".to_string()),
+    }
+
+    let public_key = k256::ecdsa::VerifyingKey::from_sec1_bytes(&public_key_bytes)
+        .map_err(|e| format!("invalid ECDSA public key: {e}"))?;
+    let compressed = public_key.to_sec1_point(true);
+    ecdsa_k256_keccak::PublicKey::read_from_bytes(compressed.as_bytes())
         .map_err(|e| format!("failed to deserialize ECDSA public key: {}", e))
 }
 
@@ -481,6 +505,78 @@ mod tests {
     }
 
     #[test]
+    fn ecdsa_public_key_parser_accepts_uncompressed_sec1() {
+        let compressed = "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+        let uncompressed = concat!(
+            "0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+            "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8"
+        );
+
+        let compressed_key = parse_ecdsa_public_key_hex(compressed).unwrap();
+        let uncompressed_key = parse_ecdsa_public_key_hex(uncompressed).unwrap();
+
+        assert_eq!(compressed_key, uncompressed_key);
+    }
+
+    #[test]
+    fn ecdsa_public_key_parser_rejects_trailing_bytes() {
+        let key = concat!(
+            "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+            "00"
+        );
+
+        let error = parse_ecdsa_public_key_hex(key).expect_err("trailing bytes must fail");
+
+        assert_eq!(error, "ECDSA public key must be 33 or 65 bytes");
+    }
+
+    #[test]
+    fn ecdsa_public_key_parser_rejects_invalid_uncompressed_point() {
+        let key = concat!(
+            "0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+            "0000000000000000000000000000000000000000000000000000000000000000"
+        );
+
+        let error = parse_ecdsa_public_key_hex(key).expect_err("invalid point must fail");
+
+        assert!(error.contains("invalid ECDSA public key"));
+    }
+
+    #[test]
+    fn signature_scheme_normalizes_ethereum_recovery_ids() {
+        let secret_key = EcdsaSecretKey::new();
+        let signature = secret_key.sign(Word::from([1u32, 2, 3, 4]));
+
+        for recovery_id in [27, 28] {
+            let mut signature_bytes = signature.to_bytes();
+            signature_bytes[64] = recovery_id;
+            let signature_hex = format!("0x{}", ::hex::encode(signature_bytes));
+
+            let parsed = SignatureScheme::Ecdsa
+                .parse_signature_hex(&signature_hex)
+                .expect("Ethereum recovery ID should be accepted");
+            let AccountSignature::EcdsaK256Keccak(parsed) = parsed else {
+                panic!("expected ECDSA signature");
+            };
+
+            assert_eq!(parsed.v(), recovery_id - 27);
+        }
+    }
+
+    #[test]
+    fn signature_scheme_rejects_trailing_ecdsa_signature_bytes() {
+        let secret_key = EcdsaSecretKey::new();
+        let mut signature = secret_key.sign(Word::from([1u32, 2, 3, 4])).to_bytes();
+        signature.push(0);
+
+        let error = SignatureScheme::Ecdsa
+            .parse_signature_hex(&::hex::encode(signature))
+            .expect_err("trailing bytes must fail");
+
+        assert_eq!(error, "ECDSA signature must be 65 bytes");
+    }
+
+    #[test]
     fn signature_scheme_build_signature_advice_entry_accepts_falcon_signatures() {
         let secret_key = SecretKey::new();
         let message = Word::from([1u32, 2, 3, 4]);
@@ -527,7 +623,10 @@ mod tests {
         let public_key_hex = format!("0x{}", ::hex::encode(public_key.to_bytes()));
         let commitment = public_key.to_commitment();
         let tx_summary_commitment = Word::from([1u32, 2, 3, 4]);
-        let signature = AccountSignature::EcdsaK256Keccak(secret_key.sign_prehash([7u8; 32]));
+        let digest = miden_standards::account::auth::eip712::transaction_summary_digest(
+            tx_summary_commitment,
+        );
+        let signature = AccountSignature::EcdsaK256Keccak(secret_key.sign_prehash(digest));
 
         let (key, values) = SignatureScheme::Ecdsa
             .build_eip712_signature_advice_entry(
@@ -543,6 +642,25 @@ mod tests {
         assert_eq!(key, expected_key);
         assert_ne!(key, raw_key);
         assert_eq!(values.len(), 32);
+    }
+
+    #[test]
+    fn signature_scheme_rejects_invalid_eip712_signature() {
+        let secret_key = EcdsaSecretKey::new();
+        let public_key = secret_key.public_key();
+        let public_key_hex = format!("0x{}", ::hex::encode(public_key.to_bytes()));
+        let signature = AccountSignature::EcdsaK256Keccak(secret_key.sign_prehash([7u8; 32]));
+
+        let error = SignatureScheme::Ecdsa
+            .build_eip712_signature_advice_entry(
+                public_key.to_commitment(),
+                Word::from([1u32, 2, 3, 4]),
+                &signature,
+                Some(&public_key_hex),
+            )
+            .expect_err("signature for another digest must fail");
+
+        assert_eq!(error, "invalid EIP-712 transaction-summary signature");
     }
 
     #[test]

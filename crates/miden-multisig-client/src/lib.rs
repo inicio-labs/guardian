@@ -73,7 +73,7 @@ pub use client::{
 };
 
 // Procedures
-pub use procedures::{ProcedureName, ProcedureThreshold};
+pub use procedures::{MultisigContractVersion, ProcedureName, ProcedureThreshold};
 
 // Account types
 pub use account::MultisigAccount;

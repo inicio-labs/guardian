@@ -19,8 +19,10 @@ use crate::utils::hex_body_eq;
 
 use super::{
     build_p2id_transaction_request, build_update_guardian_transaction_request,
-    build_update_procedure_threshold_transaction_request, build_update_signers_transaction_request,
-    chain_anchor_to_base64, execute_for_summary, generate_salt, word_to_hex,
+    build_update_procedure_threshold_transaction_request,
+    build_update_procedure_threshold_transaction_request_for_root,
+    build_update_signers_transaction_request, chain_anchor_to_base64, execute_for_summary,
+    generate_salt, word_to_hex,
 };
 
 /// Builder for creating multisig transaction proposals.
@@ -686,12 +688,21 @@ impl ProposalBuilder {
             as usize;
 
         let salt = generate_salt();
-        let tx_request = build_update_procedure_threshold_transaction_request(
-            procedure,
-            new_threshold,
-            salt,
-            std::iter::empty(),
-        )?;
+        let tx_request = if procedure == ProcedureName::AuthTx {
+            build_update_procedure_threshold_transaction_request_for_root(
+                account.procedure_root(procedure)?,
+                new_threshold,
+                salt,
+                std::iter::empty(),
+            )?
+        } else {
+            build_update_procedure_threshold_transaction_request(
+                procedure,
+                new_threshold,
+                salt,
+                std::iter::empty(),
+            )?
+        };
         let (tx_summary, chain_anchor) =
             execute_for_summary(miden_client, account_id, tx_request).await?;
         let tx_commitment = tx_summary.to_commitment();

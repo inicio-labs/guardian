@@ -314,6 +314,7 @@ impl MultisigClient {
             signature_inputs,
             &required_commitments,
             tx_summary_commitment,
+            account.contract_version()?,
         )?;
 
         if proposal.transaction_type.requires_guardian_ack() {
@@ -571,6 +572,7 @@ impl MultisigClient {
             signature_inputs,
             &required_commitments,
             tx_summary_commitment,
+            account.contract_version()?,
         )?;
 
         if proposal.transaction_type.requires_guardian_ack() {

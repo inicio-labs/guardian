@@ -110,13 +110,11 @@ pub enum MultisigError {
     #[error("account storage error: {0}")]
     AccountStorage(String),
 
-    /// The account's code was built from a different miden-standards contract
-    /// version than the one this SDK pins, so the SDK's procedure roots do not
-    /// apply to it.
+    /// The account uses a guarded-multisig contract version this SDK does not recognize.
     #[error(
         "unsupported contract version for account {account_id}: its code does not carry \
-         this SDK's pinned guarded-multisig auth procedure; use the SDK release matching \
-         the contract version the account was created with (see docs/MULTISIG_SDK.md, \
+         a supported guarded-multisig auth procedure; use an SDK release matching the \
+         contract version the account was created with (see docs/MULTISIG_SDK.md, \
          \"Contract version pinning\")"
     )]
     UnsupportedContractVersion { account_id: AccountId },

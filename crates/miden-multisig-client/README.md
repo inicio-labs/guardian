@@ -24,6 +24,14 @@ Raw and EIP-712 ECDSA approvers may participate in the same multisig
 transaction; GUARDIAN acknowledgements stay raw. The built-in
 `sign_proposal` and `sign_imported_proposal` methods currently create raw
 signatures, so hardware-wallet signatures must be supplied externally.
+All Guardian clients and servers handling EIP-712 proposals must run this
+version; mixed-version peers do not preserve the EIP-712 wire field.
+External ECDSA public keys may use compressed or uncompressed SEC1 encoding,
+and recovery IDs may use either `0/1` or Ethereum's `27/28` form.
+The SDK recognizes both the original raw-only 0.16 account and the patched
+EIP-712 0.16 account by their immutable authentication root. Existing accounts
+remain raw-only; new accounts built with the patched Rust protocol dependency
+use the EIP-712-capable variant.
 
 ## Miden compatibility
 
@@ -49,6 +57,31 @@ Add the crate to your workspace (already available in this repo). From another p
 [dependencies]
 miden-multisig-client = { git = "https://github.com/OpenZeppelin/guardian", package = "miden-multisig-client" }
 ```
+
+### EIP-712 prototype setup
+
+For the EIP-712 prototype, use the Inicio branch and add the protocol patches to
+the consuming workspace root. Cargo does not inherit `[patch.crates-io]` from a
+dependency, so the prototype will not compile without these entries.
+
+```toml
+[dependencies]
+miden-multisig-client = { git = "https://github.com/inicio-labs/guardian", branch = "vaibhav/eip712-multisig", package = "miden-multisig-client" }
+
+[patch.crates-io]
+miden-agglayer = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
+miden-block-prover = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
+miden-protocol = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
+miden-protocol-build-utils = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
+miden-standards = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
+miden-testing = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
+miden-tx = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
+miden-tx-batch = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
+```
+
+This extra patch is only needed while the protocol change remains on the Inicio
+fork. It can be removed after the protocol crates containing the EIP-712 module
+are published or merged upstream.
 
 ## Quick Start
 

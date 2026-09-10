@@ -9,7 +9,7 @@ use miden_protocol::account::{
 use miden_standards::account::auth::AuthGuardedMultisig;
 
 use crate::error::{MultisigError, Result};
-use crate::procedures::ProcedureName;
+use crate::procedures::{MultisigContractVersion, ProcedureName};
 use crate::proposal::TransactionType;
 
 /// `AuthGuardedMultisig` storage slot names (`miden::standards::auth::*`), sourced from the
@@ -25,6 +25,15 @@ fn multisig_procedure_thresholds_slot() -> &'static str {
 }
 fn guardian_public_key_slot() -> &'static str {
     AuthGuardedMultisig::guardian_public_key_slot().as_str()
+}
+
+fn contract_version_from_auth_root(auth_root: Word) -> Option<MultisigContractVersion> {
+    [
+        MultisigContractVersion::Miden016Eip712,
+        MultisigContractVersion::Miden016Raw,
+    ]
+    .into_iter()
+    .find(|version| auth_root == ProcedureName::AuthTx.root_for(*version))
 }
 
 /// Wrapper around a Miden Account with multisig-specific helpers.
@@ -107,34 +116,36 @@ impl MultisigAccount {
         Ok(slot_value[1].as_canonical_u64() as u32)
     }
 
-    /// Whether the account's code carries the auth procedure of the contract
-    /// version this SDK pins (`ProcedureName::AuthTx`). False means the account
-    /// was created from a different miden-standards release, so this SDK's
-    /// hardcoded procedure roots do not describe it.
-    pub fn is_pinned_contract_version(&self) -> bool {
-        self.account
+    /// Detects the guarded-multisig version from the account's first (authentication) procedure.
+    pub fn contract_version(&self) -> Result<MultisigContractVersion> {
+        let version = self
+            .account
             .code()
-            .has_procedure(ProcedureName::AuthTx.root())
-    }
+            .procedure_roots()
+            .next()
+            .and_then(contract_version_from_auth_root);
 
-    /// Rejects accounts built from a different contract version before any
-    /// procedure-root-keyed storage read. Without this, reads against such an
-    /// account silently miss its stored overrides (the map is keyed by *its*
-    /// roots, not this SDK's) and report the default threshold.
-    fn assert_pinned_contract_version(&self) -> Result<()> {
-        if self.is_pinned_contract_version() {
-            return Ok(());
-        }
-        Err(MultisigError::UnsupportedContractVersion {
+        version.ok_or(MultisigError::UnsupportedContractVersion {
             account_id: self.account.id(),
         })
     }
 
+    /// Returns the procedure root used by this account's immutable contract version.
+    pub fn procedure_root(&self, procedure: ProcedureName) -> Result<Word> {
+        Ok(procedure.root_for(self.contract_version()?))
+    }
+
+    /// Returns whether this SDK supports the account's guarded-multisig version.
+    ///
+    /// The original method name is retained for API compatibility.
+    pub fn is_pinned_contract_version(&self) -> bool {
+        self.contract_version().is_ok()
+    }
+
     /// Returns the configured threshold override for a specific procedure, if present.
     pub fn procedure_threshold(&self, procedure: ProcedureName) -> Result<Option<u32>> {
-        self.assert_pinned_contract_version()?;
-        let value =
-            self.get_map_item_by_name(multisig_procedure_thresholds_slot(), procedure.root());
+        let procedure_root = self.procedure_root(procedure)?;
+        let value = self.get_map_item_by_name(multisig_procedure_thresholds_slot(), procedure_root);
         let Some(value) = value else {
             return Ok(None);
         };
@@ -266,6 +277,7 @@ impl MultisigAccount {
         procedure: ProcedureName,
         threshold: u32,
     ) -> Result<Self> {
+        let contract_version = self.contract_version()?;
         let mut overrides = self.procedure_threshold_overrides()?;
         overrides.retain(|(current, _)| *current != procedure);
         if threshold > 0 {
@@ -281,7 +293,7 @@ impl MultisigAccount {
             })?;
         let entries = overrides.into_iter().map(|(procedure, threshold)| {
             (
-                StorageMapKey::new(procedure.root()),
+                StorageMapKey::new(procedure.root_for(contract_version)),
                 Word::from([threshold, 0, 0, 0]),
             )
         });
@@ -404,7 +416,7 @@ mod tests {
     }
 
     /// An account built from a different contract version (here: `NoAuth` +
-    /// `BasicWallet`, which lacks the pinned guarded-multisig auth procedure)
+    /// `BasicWallet`, which lacks a supported guarded-multisig auth procedure)
     /// must fail root-keyed threshold reads loudly instead of silently
     /// reporting the default threshold.
     #[test]
@@ -428,6 +440,41 @@ mod tests {
             err,
             MultisigError::UnsupportedContractVersion { .. }
         ));
+    }
+
+    #[test]
+    fn contract_version_registry_recognizes_raw_and_eip712_auth_roots() {
+        assert_eq!(
+            contract_version_from_auth_root(
+                ProcedureName::AuthTx.root_for(MultisigContractVersion::Miden016Raw)
+            ),
+            Some(MultisigContractVersion::Miden016Raw)
+        );
+        assert_eq!(
+            contract_version_from_auth_root(
+                ProcedureName::AuthTx.root_for(MultisigContractVersion::Miden016Eip712)
+            ),
+            Some(MultisigContractVersion::Miden016Eip712)
+        );
+        assert_eq!(contract_version_from_auth_root(word(123)), None);
+    }
+
+    #[test]
+    fn current_builder_uses_eip712_contract_version() {
+        let account = build_test_account();
+
+        assert_eq!(
+            account
+                .contract_version()
+                .expect("supported contract version"),
+            MultisigContractVersion::Miden016Eip712
+        );
+        assert_eq!(
+            account
+                .procedure_root(ProcedureName::AuthTx)
+                .expect("auth root"),
+            ProcedureName::AuthTx.root_for(MultisigContractVersion::Miden016Eip712)
+        );
     }
 
     #[test]

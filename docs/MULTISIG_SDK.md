@@ -17,9 +17,9 @@ EIP-712 signature during VM execution. Browser execution also remains disabled
 until the published Miden WASM contains the same authenticator component.
 
 The hash-only message is suitable for the first interoperability prototype,
-not final clear signing: it does not independently display or bind account and
-network fields. A production schema should add those fields before this mode
-is enabled by default.
+not final clear signing: it does not expose account or network as separately
+readable typed-data fields. A production schema should add those fields before
+this mode is enabled by default.
 
 > New to Guardian? Read [`docs/CONCEPTS.md`](./CONCEPTS.md) for the trust
 > model and state/delta lifecycle, and
@@ -1053,8 +1053,8 @@ one implicitly.
 > alternative (issue #306): they validate the complete set against the
 > configured signer count and throw instead of silently omitting
 > unreadable entries, and they shield consumers from storage-layout
-> changes across contract versions (both are gated on the pinned contract
-> version — see [Contract version pinning](#contract-version-pinning)).
+> changes across contract versions (both are gated on the supported contract
+> registry — see [Contract version pinning](#contract-version-pinning)).
 > Commitments are ordered by signer index as currently stored (indices
 > re-pack when signers are removed); hot/cold roles are a consumer-side
 > convention. The `Account` must come from the same copy of
@@ -1752,50 +1752,49 @@ matching the numbers. Per-release breaking changes are also in the
 
 ### Contract version pinning
 
-Accounts are built from the audited upstream `AuthGuardedMultisig` component, pinned
-exactly in both SDKs so a TypeScript-built account is byte-identical to a Rust-built
-one:
+Accounts are built from the audited upstream `AuthGuardedMultisig` component. The
+dependencies remain pinned exactly, while this prototype deliberately supports two
+0.16 contract variants:
 
-- **Rust**: the `miden-standards` pin in the workspace `Cargo.toml`
-- **TypeScript**: the `@miden-sdk/miden-sdk` pin, whose bundled WASM embeds the
-  matching upstream `miden-standards` guarded-multisig component
+- **Miden 0.16 raw**: the original guarded-multisig authenticator. Existing accounts
+  and accounts created by the currently published browser WASM use this variant.
+- **Miden 0.16 EIP-712**: the same component and storage layout with a modified
+  `auth_tx_guarded_multisig` procedure. Accounts created by the patched Rust
+  dependency use this variant and accept mixed raw/EIP-712 approver signatures.
 
 The exact versions for each Guardian release are in
 [`MIDEN_COMPATIBILITY.md`](./MIDEN_COMPATIBILITY.md#support-matrix); they are not
 repeated here so there is one place to update.
 
-The pins are deliberate and must move together: nothing at build time verifies the
-npm SDK's embedded miden-standards matches the Rust pin — the CI parity gates
-(`procedure_roots_match_upstream_component`, the vitest `procedure-roots` test, and
-the Playwright determinism spec) are what catch drift.
+The Rust `miden-standards` revision is pinned in the workspace `Cargo.toml`. The
+TypeScript `@miden-sdk/miden-sdk` pin embeds the original raw-only component in its
+WASM. Until that WASM is rebuilt from the patched protocol, TypeScript- and
+Rust-created accounts intentionally have different authentication roots. Root tests
+compile the Rust component and lock both supported authentication roots so drift
+fails in CI.
 
 **Deployed accounts are immutable.** An account's code — and therefore its procedure
-roots — is fixed at creation. The SDK's hardcoded `PROCEDURE_ROOTS` /
-`ProcedureName::root()` values, and the transaction scripts it compiles against the
-bundled library, all assume the account was built from the *currently pinned*
-contract version. Consequences of bumping the pin to a miden-standards release whose
-MASM changed:
+roots — is fixed at creation. The SDK detects the contract variant from the account's
+authentication procedure root. It then uses the matching root when reading or
+writing the `procedure_thresholds` entry for `auth_tx`. This matters because that
+map is keyed by procedure root: blindly using the new root against an old account
+would silently miss an override or write a value the account never consults.
 
-- Management transactions built by the new SDK **fail against old accounts** (the
-  script calls a procedure root the old account's code does not export).
-- Per-procedure threshold reads and `set_procedure_threshold` writes key the
-  account's `procedure_thresholds` storage map by the *new* roots — against an old
-  account they silently miss the stored overrides or store overrides the account
-  never consults.
+Only the authentication root differs between the two registered 0.16 variants. The
+storage layout and the roots for signer updates, threshold updates, guardian updates,
+asset sends, and asset receives are unchanged. An unknown authentication root fails
+loudly before any procedure-root-keyed storage access.
 
-**Release policy until a contract-version registry lands**: treat any
-miden-standards / @miden-sdk pin bump that changes procedure roots as a breaking
-release. Bump the minor version, regenerate the root constants (both SDKs), and
-state explicitly in the release notes that the new SDK operates only accounts
-created with the new contract version. The planned fix is a version registry keyed
-by the account's auth-procedure root, letting one SDK operate accounts from every
-supported contract version.
+Future `miden-standards` / `@miden-sdk` updates that change code or storage must add a
+reviewed registry entry and compatibility tests. They remain breaking unless the SDK
+explicitly handles both the old and new layouts and transaction scripts.
 
 #### SDK ↔ contract version support
 
-An SDK release operates only accounts created with its pinned contract version;
-the mapping is in
-[`MIDEN_COMPATIBILITY.md`](./MIDEN_COMPATIBILITY.md#support-matrix).
+This prototype operates both registered 0.16 account variants. Existing accounts
+remain raw-only; adding the verifier does not mutate their code. New accounts built
+through the patched Rust dependency use the EIP-712 variant. The currently published
+browser WASM still creates raw-only accounts and refuses EIP-712 execution.
 
 Compatibility there is about the on-chain account, not Guardian's stored state.
 Adopting a new Miden line has twice required an irreversible server-side reset, so
@@ -1803,15 +1802,14 @@ even an account whose contract version still matches must be re-registered
 afterwards. See
 [`MIDEN_COMPATIBILITY.md`](./MIDEN_COMPATIBILITY.md#data-resets).
 
-Both SDKs **enforce** this at runtime rather than trusting the table: before any
-procedure-root-keyed storage read, the account's code is checked for the pinned
-contract version's auth procedure (`auth_tx_guarded_multisig`). A mismatch fails
-loudly — Rust `MultisigError::UnsupportedContractVersion` (from
-`MultisigAccount::procedure_threshold` and everything built on it), TS an
-`unsupported contract version` error from `AccountInspector.fromAccount` — instead
-of silently reporting wrong thresholds. `MultisigAccount::is_pinned_contract_version()`
-exposes the check directly. When a new contract version is adopted, add a row here
-and regenerate the root constants in the same change.
+Both SDKs enforce the registry at runtime rather than trusting the table. A mismatch
+fails loudly — Rust `MultisigError::UnsupportedContractVersion` (from
+`MultisigAccount::contract_version`, threshold reads, and everything built on them),
+or a TypeScript `unsupported contract version` error — instead of silently reporting
+wrong thresholds. Rust exposes the detected variant through
+`MultisigAccount::contract_version()`; `is_pinned_contract_version()` remains as a
+backward-compatible boolean alias for "is supported". When a new contract version is
+adopted, add its roots and compatibility tests in the same change.
 
 ---
 

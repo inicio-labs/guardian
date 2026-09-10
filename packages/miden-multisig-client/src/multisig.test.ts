@@ -9,6 +9,7 @@ import {
   executeForSummary,
   executeForSummaryAt,
 } from './transaction.js';
+import { getProcedureRoot } from './procedures.js';
 
 const {
   mockRpcGetAccountDetails,
@@ -2772,7 +2773,10 @@ describe('Multisig', () => {
         mockWebClient,
         'send_asset',
         1,
-        { signatureScheme: 'falcon' },
+        {
+          signatureScheme: 'falcon',
+          targetProcedureRoot: getProcedureRoot('send_asset'),
+        },
       );
       expect(proposal.metadata.proposalType).toBe('update_procedure_threshold');
       if (proposal.metadata.proposalType === 'update_procedure_threshold') {
@@ -2844,7 +2848,10 @@ describe('Multisig', () => {
         mockWebClient,
         'send_asset',
         1,
-        { signatureScheme: 'ecdsa' },
+        {
+          signatureScheme: 'ecdsa',
+          targetProcedureRoot: getProcedureRoot('send_asset'),
+        },
       );
     });
   });
@@ -3228,6 +3235,7 @@ describe('Multisig', () => {
           signatureHex: '0x' + 'e'.repeat(130),
           scheme: 'ecdsa',
           publicKey,
+          messageFormat: 'raw',
           timestamp: '2024-01-01T00:00:00Z',
         },
       ]);
@@ -3340,6 +3348,7 @@ describe('Multisig', () => {
             scheme: 'ecdsa',
             signature: '0x' + 'b'.repeat(130),
             publicKey,
+            messageFormat: 'raw',
           },
           timestamp: '2024-01-01T00:00:00Z',
         },

@@ -10,14 +10,10 @@ use std::num::NonZeroU32;
 
 use guardian_shared::FromJson;
 use guardian_shared::hex::FromHex;
-use guardian_shared::{EcdsaMessageFormat, SignatureScheme};
+use guardian_shared::{EcdsaMessageFormat, SignatureScheme, parse_ecdsa_public_key_hex};
 use miden_protocol::account::AccountId;
-use miden_protocol::crypto::dsa::ecdsa_k256_keccak::{
-    PublicKey as EcdsaPublicKey, Signature as EcdsaSignature,
-};
 use miden_protocol::crypto::dsa::falcon512_poseidon2::Signature as Poseidon2FalconSignature;
 use miden_protocol::transaction::TransactionSummary;
-use miden_protocol::utils::serde::Deserializable;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{MultisigError, Result};
@@ -28,7 +24,8 @@ use crate::proposal::{
 use crate::utils::hex_body_eq;
 
 /// Current export format version.
-pub const EXPORT_VERSION: u32 = 1;
+pub const EXPORT_VERSION: u32 = 2;
+pub(crate) const RAW_EXPORT_VERSION: u32 = 1;
 
 fn default_signature_scheme() -> SignatureScheme {
     SignatureScheme::Falcon
@@ -202,36 +199,21 @@ impl ExportedProposal {
                     })?;
                 }
                 SignatureScheme::Ecdsa => {
-                    let signature_bytes = hex::decode(signature_hex.trim_start_matches("0x"))
+                    SignatureScheme::Ecdsa
+                        .parse_signature_hex(&signature_hex)
                         .map_err(|e| {
                             MultisigError::Signature(format!(
-                                "invalid ECDSA exported signature hex: {}",
+                                "invalid ECDSA exported signature: {}",
                                 e
                             ))
                         })?;
-                    EcdsaSignature::read_from_bytes(&signature_bytes).map_err(|e| {
-                        MultisigError::Signature(format!(
-                            "invalid ECDSA exported signature bytes: {}",
-                            e
-                        ))
-                    })?;
                     let public_key_hex = signature.public_key_hex.as_ref().ok_or_else(|| {
                         MultisigError::Signature(
                             "ECDSA exported signatures require a public key".to_string(),
                         )
                     })?;
-                    let public_key_bytes = hex::decode(public_key_hex.trim_start_matches("0x"))
-                        .map_err(|e| {
-                            MultisigError::Signature(format!(
-                                "invalid ECDSA exported public key hex: {}",
-                                e
-                            ))
-                        })?;
-                    EcdsaPublicKey::read_from_bytes(&public_key_bytes).map_err(|e| {
-                        MultisigError::Signature(format!(
-                            "invalid ECDSA exported public key bytes: {}",
-                            e
-                        ))
+                    parse_ecdsa_public_key_hex(public_key_hex).map_err(|e| {
+                        MultisigError::Signature(format!("invalid ECDSA exported public key: {e}"))
                     })?;
                 }
             }
@@ -283,7 +265,8 @@ impl ExportedProposal {
 
         let metadata = self.metadata();
         metadata.to_transaction_type(&self.metadata.proposal_type)?;
-        self.validate_signatures()
+        self.validate_signatures()?;
+        self.validate_export_version()
     }
 
     /// Creates an ExportedProposal from a Proposal and account ID.
@@ -334,7 +317,7 @@ impl ExportedProposal {
         };
 
         Ok(Self {
-            version: EXPORT_VERSION,
+            version: RAW_EXPORT_VERSION,
             account_id: account_id.to_string(),
             id: proposal.id.clone(),
             nonce: proposal.nonce,
@@ -352,6 +335,9 @@ impl ExportedProposal {
     /// Creates an ExportedProposal with signatures from raw data.
     pub fn with_signatures(mut self, signatures: Vec<ExportedSignature>) -> Self {
         self.signatures = signatures;
+        if self.has_eip712_signature() {
+            self.version = EXPORT_VERSION;
+        }
         self
     }
 
@@ -458,6 +444,9 @@ impl ExportedProposal {
             return Err(MultisigError::AlreadySigned);
         }
 
+        if signature.message_format == EcdsaMessageFormat::Eip712 {
+            self.version = EXPORT_VERSION;
+        }
         self.signatures.push(signature);
         Ok(())
     }
@@ -470,6 +459,7 @@ impl ExportedProposal {
 
     /// Serializes the proposal to a JSON string.
     pub fn to_json(&self) -> Result<String> {
+        self.validate_export_version()?;
         serde_json::to_string_pretty(self).map_err(MultisigError::Serialization)
     }
 
@@ -477,26 +467,41 @@ impl ExportedProposal {
     pub fn from_json(json: &str) -> Result<Self> {
         let exported: Self = serde_json::from_str(json)?;
 
-        if exported.version > EXPORT_VERSION {
-            return Err(MultisigError::InvalidConfig(format!(
-                "unsupported export version {}, maximum supported is {}",
-                exported.version, EXPORT_VERSION
-            )));
-        }
-
         exported.validate(None)?;
 
         Ok(exported)
+    }
+
+    fn has_eip712_signature(&self) -> bool {
+        self.signatures
+            .iter()
+            .any(|signature| signature.message_format == EcdsaMessageFormat::Eip712)
+    }
+
+    fn validate_export_version(&self) -> Result<()> {
+        if !(RAW_EXPORT_VERSION..=EXPORT_VERSION).contains(&self.version) {
+            return Err(MultisigError::InvalidConfig(format!(
+                "unsupported export version {}, supported versions are {} through {}",
+                self.version, RAW_EXPORT_VERSION, EXPORT_VERSION
+            )));
+        }
+        if self.has_eip712_signature() && self.version < EXPORT_VERSION {
+            return Err(MultisigError::InvalidConfig(
+                "EIP-712 signatures require export version 2".to_string(),
+            ));
+        }
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use guardian_shared::ToJson;
-    use miden_client::Serializable;
+    use miden_client::{Deserializable, Serializable};
     use miden_protocol::account::AccountId;
     use miden_protocol::account::AccountStoragePatch;
     use miden_protocol::account::delta::{AccountDelta, AccountVaultDelta};
+    use miden_protocol::crypto::dsa::ecdsa_k256_keccak::SigningKey as EcdsaSigningKey;
     use miden_protocol::crypto::dsa::falcon512_poseidon2::SecretKey;
     use miden_protocol::transaction::{
         InputNotes, RawOutputNotes, TransactionSummary, TransactionSummaryUserParams,
@@ -798,6 +803,82 @@ mod tests {
             public_key_hex: None,
             message_format: EcdsaMessageFormat::Raw,
         }
+    }
+
+    fn valid_eip712_exported_signature() -> ExportedSignature {
+        let mut secret_key_bytes = [0u8; 32];
+        secret_key_bytes[31] = 1;
+        let secret_key = EcdsaSigningKey::read_from_bytes(&secret_key_bytes).unwrap();
+        let public_key = secret_key.public_key();
+        let digest = miden_standards::account::auth::eip712::transaction_summary_digest(
+            create_test_tx_summary().to_commitment(),
+        );
+        let signature = secret_key.sign_prehash(digest);
+        let public_key_hex = concat!(
+            "0x0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+            "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8"
+        );
+        ExportedSignature {
+            signer_commitment: format!("0x{}", hex::encode(public_key.to_commitment().to_bytes())),
+            signature: format!("0x{}", hex::encode(signature.to_bytes())),
+            scheme: SignatureScheme::Ecdsa,
+            public_key_hex: Some(public_key_hex.to_string()),
+            message_format: EcdsaMessageFormat::Eip712,
+        }
+    }
+
+    fn empty_valid_export() -> ExportedProposal {
+        ExportedProposal {
+            version: RAW_EXPORT_VERSION,
+            account_id: valid_account_id(),
+            id: valid_proposal_id(),
+            nonce: 1,
+            tx_summary: create_test_tx_summary().to_json(),
+            signatures: Vec::new(),
+            signatures_required: 1,
+            metadata: ExportedMetadata {
+                proposal_type: "change_threshold".to_string(),
+                new_threshold: Some(1),
+                signer_commitments_hex: vec![valid_word_hex()],
+                ..Default::default()
+            },
+        }
+    }
+
+    #[test]
+    fn eip712_signatures_use_export_version_two() {
+        let signature = valid_eip712_exported_signature();
+        let upgraded = empty_valid_export().with_signatures(vec![signature.clone()]);
+
+        assert_eq!(upgraded.version, EXPORT_VERSION);
+        upgraded.validate(None).expect("version 2 should validate");
+
+        let mut added = empty_valid_export();
+        added
+            .add_signature(signature)
+            .expect("signature should be added");
+        assert_eq!(added.version, EXPORT_VERSION);
+    }
+
+    #[test]
+    fn exported_signature_accepts_uncompressed_public_key() {
+        let signature = valid_eip712_exported_signature();
+        let proposal = empty_valid_export().with_signatures(vec![signature]);
+
+        proposal
+            .validate(None)
+            .expect("uncompressed SEC1 key is valid");
+    }
+
+    #[test]
+    fn version_one_rejects_eip712_signatures() {
+        let mut proposal = empty_valid_export();
+        proposal.signatures.push(valid_eip712_exported_signature());
+
+        let error = proposal
+            .validate(None)
+            .expect_err("version 1 must reject EIP-712 signatures");
+        assert!(error.to_string().contains("require export version 2"));
     }
 
     #[test]

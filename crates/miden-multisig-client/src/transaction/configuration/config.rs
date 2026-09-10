@@ -108,9 +108,16 @@ pub fn build_update_procedure_threshold_script(
     procedure: ProcedureName,
     threshold: u32,
 ) -> Result<TransactionScript> {
+    build_update_procedure_threshold_script_for_root(procedure.root(), threshold)
+}
+
+/// Builds an update-procedure-threshold script for a specific procedure root.
+pub(crate) fn build_update_procedure_threshold_script_for_root(
+    procedure_root: Word,
+    threshold: u32,
+) -> Result<TransactionScript> {
     let standards_lib: Package = StandardsLib::default().into();
 
-    let procedure_root = procedure.root();
     let tx_script_code = format!(
         r#"
         use miden::standards::auth::multisig
@@ -150,7 +157,31 @@ where
     I: IntoIterator<Item = (Word, Vec<Felt>)>,
 {
     let script = build_update_procedure_threshold_script(procedure, threshold)?;
+    build_update_procedure_threshold_transaction_request_with_script(script, salt, extra_advice)
+}
 
+/// Builds an update-procedure-threshold request for a specific procedure root.
+pub(crate) fn build_update_procedure_threshold_transaction_request_for_root<I>(
+    procedure_root: Word,
+    threshold: u32,
+    salt: Word,
+    extra_advice: I,
+) -> Result<TransactionRequest>
+where
+    I: IntoIterator<Item = (Word, Vec<Felt>)>,
+{
+    let script = build_update_procedure_threshold_script_for_root(procedure_root, threshold)?;
+    build_update_procedure_threshold_transaction_request_with_script(script, salt, extra_advice)
+}
+
+fn build_update_procedure_threshold_transaction_request_with_script<I>(
+    script: TransactionScript,
+    salt: Word,
+    extra_advice: I,
+) -> Result<TransactionRequest>
+where
+    I: IntoIterator<Item = (Word, Vec<Felt>)>,
+{
     let request = TransactionRequestBuilder::new()
         .custom_script(script)
         .extend_advice_map(extra_advice)

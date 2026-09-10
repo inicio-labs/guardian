@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { PROCEDURE_ROOTS } from '../src/procedures.js';
+import { PROCEDURE_ROOTS, getProcedureRoot } from '../src/procedures.js';
 
 interface GeneratedProcedureRoot {
   name: keyof typeof PROCEDURE_ROOTS;
@@ -38,11 +38,11 @@ function loadGeneratedProcedureRoots(): GeneratedProcedureRoots {
 describe('procedure roots', () => {
   it('match the compiled account procedure hashes in SDK hex format', () => {
     const generated = loadGeneratedProcedureRoots();
-    const expected = Object.fromEntries(
-      generated.procedure_roots.map((procedure) => [procedure.name, procedure.typescript_hex]),
-    );
 
-    expect(PROCEDURE_ROOTS).toEqual(expected);
+    for (const procedure of generated.procedure_roots) {
+      const version = procedure.name === 'auth_tx' ? 'miden-0.16-eip712' : 'miden-0.16-raw';
+      expect(getProcedureRoot(procedure.name, version)).toBe(procedure.typescript_hex);
+    }
   });
 
   it('do not use the Rust display encoding', () => {
@@ -54,5 +54,15 @@ describe('procedure roots', () => {
     expect(sendAsset).toBeDefined();
     expect(PROCEDURE_ROOTS.send_asset).toBe(sendAsset?.typescript_hex);
     expect(PROCEDURE_ROOTS.send_asset).not.toBe(sendAsset?.rust_hex);
+  });
+
+  it('keeps the original 0.16 raw auth root in the compatibility registry', () => {
+    expect(getProcedureRoot('auth_tx')).toBe(PROCEDURE_ROOTS.auth_tx);
+    expect(getProcedureRoot('auth_tx', 'miden-0.16-raw')).toBe(
+      '0xa6aa6f69d9358535272ba433cd48d20628a5c69598e00c6dd01a22e83a5f15df',
+    );
+    expect(getProcedureRoot('send_asset', 'miden-0.16-raw')).toBe(
+      PROCEDURE_ROOTS.send_asset,
+    );
   });
 });

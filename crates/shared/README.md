@@ -2,6 +2,10 @@
 
 This crate contains shared types and utilities for the GUARDIAN project.
 
+On the EIP-712 prototype branch, standalone consumers must also add the
+[protocol patches](../miden-multisig-client/README.md#eip-712-prototype-setup)
+to their workspace root.
+
 ### Features
 
 - `auth`: Authentication utilities for Miden Falcon RPO-512

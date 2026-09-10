@@ -7,6 +7,7 @@ mod guardian;
 mod payment;
 
 pub use builder::ProposalBuilder;
+pub(crate) use configuration::build_update_procedure_threshold_transaction_request_for_root;
 pub use configuration::{
     build_update_procedure_threshold_transaction_request, build_update_signers_transaction_request,
 };

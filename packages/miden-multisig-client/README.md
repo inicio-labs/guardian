@@ -21,7 +21,9 @@ Proposal import/export and Guardian transport preserve the per-ECDSA-signature
 not yet contain the modified multisig authenticator, so browser execution
 fails closed when an EIP-712 signature is present. The normal browser signing
 methods continue to create raw signatures. Use the Rust execution path for the
-first EIP-712 prototype.
+first EIP-712 prototype. The SDK recognizes both original raw-only 0.16 accounts
+and patched EIP-712 0.16 accounts by their immutable authentication root; old
+accounts remain raw-only.
 
 ## Installation
 
@@ -201,8 +203,8 @@ change. Hot/cold roles are a consumer-side convention, not part of on-chain
 state. `getSignerPublicKeyCommitments` throws rather than silently returning
 a truncated list when any signer entry is absent; `getGuardianPublicKeyCommitment`
 throws when the guardian entry is missing (the guarded-multisig always
-includes a guardian). Both are gated on this SDK's pinned contract version
-and reject accounts built from a different miden-standards release.
+includes a guardian). Both are gated on this SDK's supported contract registry
+and reject accounts carrying an unknown guarded-multisig authentication root.
 
 The `Account` passed to `AccountInspector` must come from the same copy of
 `@miden-sdk/miden-sdk` that this package links. An application bundling its

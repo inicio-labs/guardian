@@ -64,6 +64,7 @@ tonic-prost-build = "0.14.2"
 tonic-prost = "0.14.2"
 thiserror = "2.0.9"
 hex = "0.4.3"
+k256 = { version = "0.14", default-features = false, features = ["alloc", "ecdsa"] }
 base64 = "0.22"
 rand_chacha = "0.10"
 tempfile = "3.15.0"
@@ -77,9 +78,8 @@ chrono = "0.4"
 # parameter inference for axum `Query`/`Path` extractors.
 utoipa = { version = "5", features = ["axum_extras"] }
 
-# Miden 0.16 rc line: exact pins only. Must match the versions embedded in
-# the @miden-sdk/miden-sdk WASM build, or the two clients compute different
-# transaction summary commitments and auth procedure roots.
+# Miden 0.16 rc line. The Rust client pins the EIP-712 fork below; the browser
+# WASM remains on the raw-authenticator build.
 miden-protocol = "=0.16.0-rc.6"
 miden-core-lib = "=0.29.1"
 miden-standards = "=0.16.0-rc.6"
@@ -92,11 +92,11 @@ miden-client-sqlite-store = "=0.16.0-rc.3"
 # EIP-712 multisig authentication prototype. Keep the protocol crates on one exact
 # source revision so account/component types and procedure roots cannot drift.
 [patch.crates-io]
-miden-agglayer = { git = "https://github.com/inicio-labs/protocol", rev = "4d1410c5939cf4df554923cab96d7c28e9417811" }
-miden-block-prover = { git = "https://github.com/inicio-labs/protocol", rev = "4d1410c5939cf4df554923cab96d7c28e9417811" }
-miden-protocol = { git = "https://github.com/inicio-labs/protocol", rev = "4d1410c5939cf4df554923cab96d7c28e9417811" }
-miden-protocol-build-utils = { git = "https://github.com/inicio-labs/protocol", rev = "4d1410c5939cf4df554923cab96d7c28e9417811" }
-miden-standards = { git = "https://github.com/inicio-labs/protocol", rev = "4d1410c5939cf4df554923cab96d7c28e9417811" }
-miden-testing = { git = "https://github.com/inicio-labs/protocol", rev = "4d1410c5939cf4df554923cab96d7c28e9417811" }
-miden-tx = { git = "https://github.com/inicio-labs/protocol", rev = "4d1410c5939cf4df554923cab96d7c28e9417811" }
-miden-tx-batch = { git = "https://github.com/inicio-labs/protocol", rev = "4d1410c5939cf4df554923cab96d7c28e9417811" }
+miden-agglayer = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
+miden-block-prover = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
+miden-protocol = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
+miden-protocol-build-utils = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
+miden-standards = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
+miden-testing = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
+miden-tx = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
+miden-tx-batch = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }

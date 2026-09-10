@@ -2,6 +2,10 @@
 
 A minimal Rust client library for interacting with the Guardian gRPC service.
 
+On the EIP-712 prototype branch, standalone consumers must also add the
+[protocol patches](../miden-multisig-client/README.md#eip-712-prototype-setup)
+to their workspace root.
+
 ## API Reference
 
 ### Client Creation

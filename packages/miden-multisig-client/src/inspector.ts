@@ -5,7 +5,13 @@
 import { Account, Word } from '@miden-sdk/miden-sdk';
 import { base64ToUint8Array } from './utils/encoding.js';
 import { isEmptyWord, wordElementToBigInt, wordToHex } from './utils/word.js';
-import { getProcedureRoot, getProcedureNames, type ProcedureName } from './procedures.js';
+import {
+  getMultisigContractVersion,
+  getProcedureRoot,
+  getProcedureNames,
+  type MultisigContractVersion,
+  type ProcedureName,
+} from './procedures.js';
 import { MULTISIG_SLOT_NAMES, GUARDIAN_SLOT_NAMES, MAX_SIGNERS } from './account/layout.js';
 
 type AccountStorageLike = ReturnType<Account['storage']>;
@@ -53,15 +59,8 @@ export function assertCompleteDetectedConfig(
  * procedure-root-keyed maps below describe a different component, so reads
  * would silently miss its state.
  */
-function assertPinnedContractVersion(account: Account): void {
-  if (!account.code().hasProcedure(Word.fromHex(getProcedureRoot('auth_tx')))) {
-    throw new Error(
-      'unsupported contract version: the account\'s code does not carry this ' +
-      "SDK's pinned guarded-multisig auth procedure; use the SDK release " +
-      'matching the contract version the account was created with ' +
-      '(see docs/MULTISIG_SDK.md, "Contract version pinning")',
-    );
-  }
+function assertSupportedContractVersion(account: Account): MultisigContractVersion {
+  return getMultisigContractVersion(account);
 }
 
 function indexMapKey(index: number): Word {
@@ -149,7 +148,7 @@ export class AccountInspector {
    * @returns Signer public-key commitments as 0x-prefixed hex, ordered by signer index
    */
   static getSignerPublicKeyCommitments(account: Account): string[] {
-    assertPinnedContractVersion(account);
+    assertSupportedContractVersion(account);
     const storage = account.storage();
 
     const thresholdConfig = storage.getItem(MULTISIG_SLOT_NAMES.THRESHOLD_CONFIG) as
@@ -199,7 +198,7 @@ export class AccountInspector {
    * @returns The guardian commitment as 0x-prefixed hex
    */
   static getGuardianPublicKeyCommitment(account: Account): string {
-    assertPinnedContractVersion(account);
+    assertSupportedContractVersion(account);
     const storage = account.storage();
 
     const commitment = readMapWord(storage, GUARDIAN_SLOT_NAMES.PUBLIC_KEY, indexMapKey(0));
@@ -240,7 +239,7 @@ export class AccountInspector {
     // procedure-root-keyed read: against such an account the reads below would
     // silently miss its stored overrides (its `procedure_thresholds` map is
     // keyed by *its* roots, not this SDK's) and report wrong thresholds.
-    assertPinnedContractVersion(account);
+    const contractVersion = assertSupportedContractVersion(account);
 
     const storage = account.storage();
 
@@ -292,7 +291,7 @@ export class AccountInspector {
     const procedureThresholds = new Map<ProcedureName, number>();
     for (const procName of getProcedureNames()) {
       try {
-        const rootHex = getProcedureRoot(procName);
+        const rootHex = getProcedureRoot(procName, contractVersion);
         const rootWord = Word.fromHex(rootHex);
         const value = readMapWord(storage, MULTISIG_SLOT_NAMES.PROCEDURE_THRESHOLDS, rootWord);
         if (value) {
