@@ -251,8 +251,21 @@ pub async fn build_final_transaction_request(
 mod tests {
     use super::*;
     use miden_client::Serializable;
+    use miden_confidential_contracts::multisig_guardian::{
+        MultisigGuardianBuilder, MultisigGuardianConfig,
+    };
+    use miden_protocol::account::AccountType;
+    use miden_protocol::account::auth::AuthSecretKey;
+    use miden_protocol::asset::FungibleAsset;
     use miden_protocol::crypto::dsa::ecdsa_k256_keccak::SigningKey as EcdsaSigningKey;
     use miden_protocol::crypto::dsa::falcon512_poseidon2::SecretKey;
+    use miden_protocol::note::NoteType;
+    use miden_protocol::testing::account_id::ACCOUNT_ID_REGULAR_PUBLIC_ACCOUNT_UPDATABLE_CODE;
+    use miden_protocol::transaction::RawOutputNote;
+    use miden_standards::account::auth::eip712;
+    use miden_testing::MockChainBuilder;
+    use miden_tx::TransactionExecutorError;
+    use miden_tx::auth::{BasicAuthenticator, SigningInputs, TransactionAuthenticator};
 
     #[test]
     fn test_collect_signature_advice_filters_by_required() {
@@ -352,5 +365,124 @@ mod tests {
             .expect("valid EIP-712 advice");
         assert_eq!(advice.len(), 1);
         assert_eq!(advice[0].1.len(), 32);
+    }
+
+    /// Exercises the Guardian account builder and Rust advice collector against the patched
+    /// standards component with one raw approver, one EIP-712 approver, and a raw Guardian ack.
+    #[tokio::test]
+    async fn guardian_account_executes_mixed_raw_and_eip712_signatures() -> anyhow::Result<()> {
+        let raw_signing_key = EcdsaSigningKey::new();
+        let raw_public_key = raw_signing_key.public_key();
+        let eip712_signing_key = EcdsaSigningKey::new();
+        let eip712_public_key = eip712_signing_key.public_key();
+        let guardian_signing_key = EcdsaSigningKey::new();
+        let guardian_public_key = guardian_signing_key.public_key();
+        let guardian_authenticator =
+            BasicAuthenticator::new(&[AuthSecretKey::EcdsaK256Keccak(guardian_signing_key)]);
+
+        let config = MultisigGuardianConfig::new(
+            2,
+            vec![
+                raw_public_key.to_commitment().into(),
+                eip712_public_key.to_commitment().into(),
+            ],
+            guardian_public_key.to_commitment().into(),
+        )
+        .with_account_type(AccountType::Public)
+        .with_signature_scheme(SignatureScheme::Ecdsa);
+        let mut account = MultisigGuardianBuilder::new(config).build_existing()?;
+
+        let output_asset = FungibleAsset::mock(0);
+        let mut chain_builder = MockChainBuilder::with_accounts([account.clone()])?;
+        let output_note = chain_builder.add_p2id_note(
+            account.id(),
+            ACCOUNT_ID_REGULAR_PUBLIC_ACCOUNT_UPDATABLE_CODE.try_into()?,
+            &[output_asset],
+            NoteType::Public,
+        )?;
+        let input_note = chain_builder.add_spawn_note([&output_note])?;
+        let mut chain = chain_builder.build()?;
+        let auth_args = Word::from([Felt::new_unchecked(712); 4]);
+
+        let unsigned = chain
+            .build_transaction(account.id())
+            .authenticated_input_notes([input_note.id()])
+            .authenticator(None)
+            .expected_output_notes(vec![RawOutputNote::Full(output_note.clone())])
+            .auth_args(auth_args)
+            .build()?;
+        let tx_summary = match unsigned
+            .execute()
+            .await
+            .expect_err("signatures are required")
+        {
+            TransactionExecutorError::Unauthorized(summary) => summary,
+            error => anyhow::bail!("expected unauthorized transaction, got {error}"),
+        };
+        let tx_summary_commitment = tx_summary.as_ref().to_commitment();
+        let signing_inputs = SigningInputs::TransactionSummary(tx_summary);
+
+        let raw_signature = raw_signing_key.sign(tx_summary_commitment);
+        let eip712_signature = eip712_signing_key
+            .sign_prehash(eip712::transaction_summary_digest(tx_summary_commitment));
+        let signature_inputs = vec![
+            SignatureInput {
+                signer_commitment: format!(
+                    "0x{}",
+                    hex::encode(raw_public_key.to_commitment().to_bytes())
+                ),
+                signature_hex: format!("0x{}", hex::encode(raw_signature.to_bytes())),
+                scheme: SignatureScheme::Ecdsa,
+                public_key_hex: Some(format!("0x{}", hex::encode(raw_public_key.to_bytes()))),
+                message_format: EcdsaMessageFormat::Raw,
+            },
+            SignatureInput {
+                signer_commitment: format!(
+                    "0x{}",
+                    hex::encode(eip712_public_key.to_commitment().to_bytes())
+                ),
+                signature_hex: format!("0x{}", hex::encode(eip712_signature.to_bytes())),
+                scheme: SignatureScheme::Ecdsa,
+                public_key_hex: Some(format!("0x{}", hex::encode(eip712_public_key.to_bytes()))),
+                message_format: EcdsaMessageFormat::Eip712,
+            },
+        ];
+        let required_commitments = signature_inputs
+            .iter()
+            .map(|signature| signature.signer_commitment.clone())
+            .collect();
+        let signature_advice = collect_signature_advice(
+            signature_inputs,
+            &required_commitments,
+            tx_summary_commitment,
+        )?;
+        let guardian_signature = guardian_authenticator
+            .get_signature(guardian_public_key.to_commitment().into(), &signing_inputs)
+            .await?;
+
+        let mut signed = chain
+            .build_transaction(account.id())
+            .authenticated_input_notes([input_note.id()])
+            .authenticator(None)
+            .expected_output_notes(vec![RawOutputNote::Full(output_note)])
+            .auth_args(auth_args);
+        for (key, value) in signature_advice {
+            signed = signed.add_advice_map_entry(key, value);
+        }
+        let executed = signed
+            .add_signature(
+                guardian_public_key.into(),
+                tx_summary_commitment,
+                guardian_signature,
+            )
+            .build()?
+            .execute()
+            .await?;
+
+        account.apply_patch(executed.account_patch())?;
+        chain.add_pending_executed_transaction(&executed)?;
+        chain.prove_next_block()?;
+
+        Ok(())
     }
 }

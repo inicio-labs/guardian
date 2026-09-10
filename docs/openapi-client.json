@@ -1915,6 +1915,14 @@
           "client_abandoned"
         ]
       },
+      "EcdsaMessageFormat": {
+        "type": "string",
+        "description": "Message encoding used by an ECDSA proposal signature.",
+        "enum": [
+          "raw",
+          "eip712"
+        ]
+      },
       "HistoryEntry": {
         "type": "object",
         "description": "One canonical transaction in the history feed wire shape.\n`account_id` is omitted — the authenticated query scopes it.",
@@ -2320,6 +2328,10 @@
               "scheme"
             ],
             "properties": {
+              "message_format": {
+                "$ref": "#/components/schemas/EcdsaMessageFormat",
+                "description": "Encoding of the message presented to the ECDSA signer."
+              },
               "public_key": {
                 "type": [
                   "string",

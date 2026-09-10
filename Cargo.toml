@@ -88,3 +88,15 @@ miden-node-proto-build = { version = "=0.16.0-rc.3", default-features = false }
 miden-testing = "=0.16.0-rc.6"
 miden-client = "=0.16.0-rc.3"
 miden-client-sqlite-store = "=0.16.0-rc.3"
+
+# EIP-712 multisig authentication prototype. Keep the protocol crates on one exact
+# source revision so account/component types and procedure roots cannot drift.
+[patch.crates-io]
+miden-agglayer = { git = "https://github.com/inicio-labs/protocol", rev = "4d1410c5939cf4df554923cab96d7c28e9417811" }
+miden-block-prover = { git = "https://github.com/inicio-labs/protocol", rev = "4d1410c5939cf4df554923cab96d7c28e9417811" }
+miden-protocol = { git = "https://github.com/inicio-labs/protocol", rev = "4d1410c5939cf4df554923cab96d7c28e9417811" }
+miden-protocol-build-utils = { git = "https://github.com/inicio-labs/protocol", rev = "4d1410c5939cf4df554923cab96d7c28e9417811" }
+miden-standards = { git = "https://github.com/inicio-labs/protocol", rev = "4d1410c5939cf4df554923cab96d7c28e9417811" }
+miden-testing = { git = "https://github.com/inicio-labs/protocol", rev = "4d1410c5939cf4df554923cab96d7c28e9417811" }
+miden-tx = { git = "https://github.com/inicio-labs/protocol", rev = "4d1410c5939cf4df554923cab96d7c28e9417811" }
+miden-tx-batch = { git = "https://github.com/inicio-labs/protocol", rev = "4d1410c5939cf4df554923cab96d7c28e9417811" }

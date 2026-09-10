@@ -13,6 +13,7 @@ description = "Shared types and utilities for Guardian"
 async-trait = "0.1"
 miden-protocol = { workspace = true }
 miden-core-lib = { workspace = true }
+miden-standards = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
 rand = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

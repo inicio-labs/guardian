@@ -170,11 +170,10 @@ impl SignatureScheme {
             ));
         }
 
-        let raw_key = signature_advice_key(pubkey_commitment, tx_summary_commitment);
-        // Keep this domain word synchronized with
-        // `miden::standards::auth::eip712::EIP712_SIGNATURE_KEY_DOMAIN`.
-        let domain = Word::from([0x3231_3745u32; 4]);
-        let key = Hasher::merge(&[raw_key, domain]);
+        let key = miden_standards::account::auth::eip712::transaction_summary_signature_key(
+            pubkey_commitment.into(),
+            tx_summary_commitment,
+        );
         let values =
             miden_core_lib::dsa::ecdsa_k256_keccak::encode_signature(&public_key, ecdsa_signature);
 

@@ -56,4 +56,5 @@ guardian-client = { version = "=0.17.0-rc.2", path = "../client", features = ["t
 tempfile = { workspace = true }
 miden-confidential-contracts = { version = "=0.17.0-rc.2", path = "../contracts", features = ["testing"] }
 miden-client = { workspace = true, features = ["tonic", "testing"] }
+miden-testing = { workspace = true }
 miden-rpc-client = { path = "../miden-rpc-client", features = ["scripted-node"] }

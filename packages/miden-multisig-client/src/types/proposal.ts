@@ -202,5 +202,4 @@ export interface SignTransactionProposalParams {
   signature: string;
   publicKey?: string;
   scheme?: SignatureScheme;
-  messageFormat?: EcdsaMessageFormat;
 }
