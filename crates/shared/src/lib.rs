@@ -645,6 +645,35 @@ mod tests {
     }
 
     #[test]
+    fn signature_scheme_accepts_ledger_eip712_signature() {
+        let public_key_hex = concat!(
+            "0x0437b0bb7a8288d38ed49a524b5dc98cff3eb5ca824c9f9dc0dfdb3d9cd600f299",
+            "a6179912b7451c09896c4098eca7ce6b2e58330672795e847c4d6af44e024230"
+        );
+        let signature_hex = concat!(
+            "0x3a260929a57fc23dc0b35b3bd41aa66df2d6cf0aff4914e5caf25f65f2f9f15b",
+            "2fedb745401497982d8ee305c490af99440edabfd17ada7acfd527b7342f54b41b"
+        );
+        let public_key = parse_ecdsa_public_key_hex(public_key_hex).unwrap();
+        let signature = SignatureScheme::Ecdsa
+            .parse_signature_hex(signature_hex)
+            .unwrap();
+        let tx_summary_limb = Felt::new(0xefcd_ab89_6745_2301).unwrap();
+        let tx_summary_commitment = Word::new([tx_summary_limb; 4]);
+
+        let (_, values) = SignatureScheme::Ecdsa
+            .build_eip712_signature_advice_entry(
+                public_key.to_commitment(),
+                tx_summary_commitment,
+                &signature,
+                Some(public_key_hex),
+            )
+            .unwrap();
+
+        assert_eq!(values.len(), 32);
+    }
+
+    #[test]
     fn signature_scheme_rejects_invalid_eip712_signature() {
         let secret_key = EcdsaSecretKey::new();
         let public_key = secret_key.public_key();
