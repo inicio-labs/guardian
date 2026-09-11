@@ -10,10 +10,8 @@ use miden_protocol::asset::FungibleAsset;
 use miden_protocol::{Felt, Word};
 
 use crate::MidenSdkClient;
-use crate::account::MultisigAccount;
 use crate::error::{MultisigError, Result};
 use crate::keystore::{ensure_hex_prefix, word_from_hex};
-use crate::procedures::MultisigContractVersion;
 use crate::proposal::TransactionType;
 
 /// Signature advice entry: (key, prepared_signature_values)
@@ -49,7 +47,6 @@ pub(crate) fn collect_signature_advice(
     signatures: impl IntoIterator<Item = SignatureInput>,
     required_commitments: &HashSet<String>,
     tx_summary_commitment: Word,
-    contract_version: MultisigContractVersion,
 ) -> Result<Vec<SignatureAdvice>> {
     let mut advice = Vec::new();
     let mut added_signers: HashSet<String> = HashSet::new();
@@ -66,14 +63,6 @@ pub(crate) fn collect_signature_advice(
         let signer_lower = sig_input.signer_commitment.to_lowercase();
         if !added_signers.insert(signer_lower) {
             continue;
-        }
-
-        if sig_input.message_format == EcdsaMessageFormat::Eip712
-            && contract_version != MultisigContractVersion::Miden016Eip712
-        {
-            return Err(MultisigError::InvalidConfig(
-                "EIP-712 signatures require the EIP-712 multisig contract version".to_string(),
-            ));
         }
 
         let commitment =
@@ -222,23 +211,13 @@ pub async fn build_final_transaction_request(
             procedure,
             new_threshold,
         } => {
-            let tx_request = if *procedure == crate::procedures::ProcedureName::AuthTx {
-                let procedure_root =
-                    MultisigAccount::new(account.clone()).procedure_root(*procedure)?;
-                crate::transaction::build_update_procedure_threshold_transaction_request_for_root(
-                    procedure_root,
-                    *new_threshold,
-                    salt,
-                    signature_advice,
-                )?
-            } else {
+            let tx_request =
                 crate::transaction::build_update_procedure_threshold_transaction_request(
                     *procedure,
                     *new_threshold,
                     salt,
                     signature_advice,
-                )?
-            };
+                )?;
 
             Ok(tx_request)
         }
@@ -304,12 +283,7 @@ mod tests {
         }];
 
         // Unknown signer should be filtered out
-        let result = collect_signature_advice(
-            signatures,
-            &required,
-            Word::default(),
-            MultisigContractVersion::Miden016Raw,
-        );
+        let result = collect_signature_advice(signatures, &required, Word::default());
         // This will fail on signature parsing, but validates filtering happens first
         // In production, only valid signatures would be provided
         assert!(result.is_ok()); // Empty vec since unknown was filtered
@@ -339,12 +313,7 @@ mod tests {
 
         // Both will fail signature parsing, but second should be deduplicated
         // before reaching that point (based on lowercase comparison)
-        let result = collect_signature_advice(
-            signatures,
-            &required,
-            Word::default(),
-            MultisigContractVersion::Miden016Raw,
-        );
+        let result = collect_signature_advice(signatures, &required, Word::default());
         // Will error on first sig parse since it's not a valid Falcon sig,
         // but the dedup logic is what we're testing
         assert!(result.is_err()); // Error on invalid sig, but only one attempt
@@ -370,13 +339,7 @@ mod tests {
             message_format: EcdsaMessageFormat::Raw,
         }];
 
-        let advice = collect_signature_advice(
-            signatures,
-            &required,
-            msg,
-            MultisigContractVersion::Miden016Raw,
-        )
-        .expect("valid advice");
+        let advice = collect_signature_advice(signatures, &required, msg).expect("valid advice");
         assert_eq!(advice.len(), 1);
     }
 
@@ -399,37 +362,10 @@ mod tests {
             message_format: EcdsaMessageFormat::Eip712,
         }];
 
-        let advice = collect_signature_advice(
-            signatures,
-            &required,
-            tx_summary_commitment,
-            MultisigContractVersion::Miden016Eip712,
-        )
-        .expect("valid EIP-712 advice");
+        let advice = collect_signature_advice(signatures, &required, tx_summary_commitment)
+            .expect("valid EIP-712 advice");
         assert_eq!(advice.len(), 1);
         assert_eq!(advice[0].1.len(), 32);
-    }
-
-    #[test]
-    fn test_collect_signature_advice_rejects_eip712_for_raw_contract() {
-        let required = HashSet::from(["0xabc".to_string()]);
-        let signatures = [SignatureInput {
-            signer_commitment: "0xabc".to_string(),
-            signature_hex: "0x1234".to_string(),
-            scheme: SignatureScheme::Ecdsa,
-            public_key_hex: None,
-            message_format: EcdsaMessageFormat::Eip712,
-        }];
-
-        let error = collect_signature_advice(
-            signatures,
-            &required,
-            Word::default(),
-            MultisigContractVersion::Miden016Raw,
-        )
-        .expect_err("raw contract must reject EIP-712 advice");
-
-        assert!(matches!(error, MultisigError::InvalidConfig(_)));
     }
 
     #[tokio::test]
@@ -518,7 +454,6 @@ mod tests {
             signature_inputs,
             &required_commitments,
             tx_summary_commitment,
-            MultisigContractVersion::Miden016Eip712,
         )?;
         let guardian_signature = guardian_authenticator
             .get_signature(guardian_public_key.to_commitment().into(), &signing_inputs)

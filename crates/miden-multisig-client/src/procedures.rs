@@ -4,15 +4,6 @@
 
 use miden_protocol::Word;
 
-/// Guarded-multisig contract variants supported by this SDK.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum MultisigContractVersion {
-    /// Original Miden 0.16 authenticator.
-    Miden016Raw,
-    /// Miden 0.16 authenticator with EIP-712 approver support.
-    Miden016Eip712,
-}
-
 /// Procedure names that can be used for threshold overrides.
 ///
 /// Roots are sourced from the upstream `AuthGuardedMultisig` + `BasicWallet`
@@ -30,13 +21,8 @@ pub enum ProcedureName {
 }
 
 impl ProcedureName {
-    /// Gets the original Miden 0.16 procedure root.
+    /// Gets the Miden 0.16 EIP-712-capable procedure root.
     pub fn root(&self) -> Word {
-        self.root_for(MultisigContractVersion::Miden016Raw)
-    }
-
-    /// Gets the procedure root for a specific supported guarded-multisig contract version.
-    pub fn root_for(&self, version: MultisigContractVersion) -> Word {
         match self {
             ProcedureName::UpdateSigners => procedure_root_word(
                 "0xa261cfd3c8791ac5abe1e78e14eade2f20789d73ab1c23c430418de59bc3380e",
@@ -44,14 +30,9 @@ impl ProcedureName {
             ProcedureName::UpdateProcedureThreshold => procedure_root_word(
                 "0x97587c61d49313b1d5a3c8b7437e0080e67ed9bd9d3e7206bcae562f934ccd03",
             ),
-            ProcedureName::AuthTx => match version {
-                MultisigContractVersion::Miden016Raw => procedure_root_word(
-                    "0xa6aa6f69d9358535272ba433cd48d20628a5c69598e00c6dd01a22e83a5f15df",
-                ),
-                MultisigContractVersion::Miden016Eip712 => procedure_root_word(
-                    "0x9e1279297e9d4f334f23bb45c3b31cee0364114f2044110480444f99eaddd6e2",
-                ),
-            },
+            ProcedureName::AuthTx => procedure_root_word(
+                "0x9e1279297e9d4f334f23bb45c3b31cee0364114f2044110480444f99eaddd6e2",
+            ),
             ProcedureName::UpdateGuardian => procedure_root_word(
                 "0x0a614ff7c81a561cbd2a4c2d9482031a7a841ca5de33349daed23a9d871b3675",
             ),
@@ -159,28 +140,6 @@ mod tests {
     }
 
     #[test]
-    fn only_auth_root_differs_between_supported_contract_versions() {
-        for procedure in ProcedureName::all() {
-            let raw_root = procedure.root_for(MultisigContractVersion::Miden016Raw);
-            let eip712_root = procedure.root_for(MultisigContractVersion::Miden016Eip712);
-
-            if *procedure == ProcedureName::AuthTx {
-                assert_ne!(raw_root, eip712_root);
-            } else {
-                assert_eq!(raw_root, eip712_root);
-            }
-        }
-    }
-
-    #[test]
-    fn procedure_root_defaults_to_original_contract_version() {
-        assert_eq!(
-            ProcedureName::AuthTx.root(),
-            ProcedureName::AuthTx.root_for(MultisigContractVersion::Miden016Raw)
-        );
-    }
-
-    #[test]
     fn procedure_name_round_trip() {
         for name in ProcedureName::all() {
             let s = name.to_string();
@@ -217,31 +176,28 @@ mod tests {
                 .into()
         };
 
-        let current_root =
-            |procedure: ProcedureName| procedure.root_for(MultisigContractVersion::Miden016Eip712);
-
         assert_eq!(
-            current_root(ProcedureName::UpdateSigners),
+            ProcedureName::UpdateSigners.root(),
             upstream_root("update_signers_and_threshold")
         );
         assert_eq!(
-            current_root(ProcedureName::UpdateProcedureThreshold),
+            ProcedureName::UpdateProcedureThreshold.root(),
             upstream_root("set_procedure_threshold")
         );
         assert_eq!(
-            current_root(ProcedureName::AuthTx),
+            ProcedureName::AuthTx.root(),
             upstream_root("auth_tx_guarded_multisig")
         );
         assert_eq!(
-            current_root(ProcedureName::UpdateGuardian),
+            ProcedureName::UpdateGuardian.root(),
             upstream_root("update_guardian_public_key")
         );
         assert_eq!(
-            current_root(ProcedureName::SendAsset),
+            ProcedureName::SendAsset.root(),
             Word::from(BasicWallet::move_asset_to_note_root())
         );
         assert_eq!(
-            current_root(ProcedureName::ReceiveAsset),
+            ProcedureName::ReceiveAsset.root(),
             Word::from(BasicWallet::receive_asset_root())
         );
     }

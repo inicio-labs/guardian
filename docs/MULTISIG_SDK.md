@@ -14,7 +14,8 @@ This is currently a two-pass flow: derive the transaction summary, obtain the
 external signature, then execute with the signature already in the advice map.
 The standard transaction authenticator does not yet request a hardware-wallet
 EIP-712 signature during VM execution. Browser execution also remains disabled
-until the published Miden WASM contains the same authenticator component.
+for EIP-712 signatures until its advice-preparation path is implemented.
+Browser raw signatures remain supported by the new account contract.
 
 The hash-only message is suitable for the first interoperability prototype,
 not final clear signing: it does not expose account or network as separately
@@ -1046,15 +1047,14 @@ one implicitly.
 - `guardianCommitment`: string | null
 - `vaultBalances`: { faucetId, amount }[]
 
-> **Reading an account's keys:** since the account uses the upstream
-> `AuthGuardedMultisig` component, the Miden SDK's
-> `Account.getPublicKeyCommitments()` returns the approver commitments
-> natively. The accessors above are the strict, layout-insulated
-> alternative (issue #306): they validate the complete set against the
+> **Reading an account's keys:** the published Miden WASM's
+> `Account.getPublicKeyCommitments()` helper does
+> not recognize the patched authentication root. The accessors above read the
+> storage directly and validate the complete set against the
 > configured signer count and throw instead of silently omitting
 > unreadable entries, and they shield consumers from storage-layout
-> changes across contract versions (both are gated on the supported contract
-> registry — see [Contract version pinning](#contract-version-pinning)).
+> contract layout (both are gated on the supported authentication root — see
+> [Contract version pinning](#contract-version-pinning)).
 > Commitments are ordered by signer index as currently stored (indices
 > re-pack when signers are removed); hot/cold roles are a consumer-side
 > convention. The `Account` must come from the same copy of
@@ -1752,49 +1752,39 @@ matching the numbers. Per-release breaking changes are also in the
 
 ### Contract version pinning
 
-Accounts are built from the audited upstream `AuthGuardedMultisig` component. The
-dependencies remain pinned exactly, while this prototype deliberately supports two
-0.16 contract variants:
-
-- **Miden 0.16 raw**: the original guarded-multisig authenticator. Existing accounts
-  and accounts created by the currently published browser WASM use this variant.
-- **Miden 0.16 EIP-712**: the same component and storage layout with a modified
-  `auth_tx_guarded_multisig` procedure. Accounts created by the patched Rust
-  dependency use this variant and accept mixed raw/EIP-712 approver signatures.
+This prototype supports one Miden 0.16 account contract: the patched
+`AuthGuardedMultisig` component that accepts raw and EIP-712 approver signatures.
+Accounts created with the original raw-only authenticator are not supported and must
+be recreated.
 
 The exact versions for each Guardian release are in
 [`MIDEN_COMPATIBILITY.md`](./MIDEN_COMPATIBILITY.md#support-matrix); they are not
 repeated here so there is one place to update.
 
 The Rust `miden-standards` revision is pinned in the workspace `Cargo.toml`. The
-TypeScript `@miden-sdk/miden-sdk` pin embeds the original raw-only component in its
-WASM. Until that WASM is rebuilt from the patched protocol, TypeScript- and
-Rust-created accounts intentionally have different authentication roots. Root tests
-compile the Rust component and lock both supported authentication roots so drift
-fails in CI.
+TypeScript package vendors the patched EIP-712, signature, and multisig MASM modules
+under a private namespace because the published browser WASM still bundles the
+original module. Rust and TypeScript account builders produce the same authentication
+root, and tests compile both paths so drift fails in CI.
 
 **Deployed accounts are immutable.** An account's code — and therefore its procedure
-roots — is fixed at creation. The SDK detects the contract variant from the account's
-authentication procedure root. It then uses the matching root when reading or
-writing the `procedure_thresholds` entry for `auth_tx`. This matters because that
-map is keyed by procedure root: blindly using the new root against an old account
-would silently miss an override or write a value the account never consults.
+roots — is fixed at creation. The original raw-only account cannot gain EIP-712
+verification through a client upgrade. The SDK therefore rejects its authentication
+root rather than reading or writing the `procedure_thresholds` map with the wrong
+`auth_tx` key.
 
-Only the authentication root differs between the two registered 0.16 variants. The
-storage layout and the roots for signer updates, threshold updates, guardian updates,
-asset sends, and asset receives are unchanged. An unknown authentication root fails
-loudly before any procedure-root-keyed storage access.
-
-Future `miden-standards` / `@miden-sdk` updates that change code or storage must add a
-reviewed registry entry and compatibility tests. They remain breaking unless the SDK
-explicitly handles both the old and new layouts and transaction scripts.
+The storage layout and the roots for signer updates, threshold updates, guardian
+updates, asset sends, and asset receives remain unchanged. Any authentication-root
+mismatch fails loudly before procedure-root-keyed storage is used. Future protocol
+changes must update the pinned root and cross-language compilation tests together.
 
 #### SDK ↔ contract version support
 
-This prototype operates both registered 0.16 account variants. Existing accounts
-remain raw-only; adding the verifier does not mutate their code. New accounts built
-through the patched Rust dependency use the EIP-712 variant. The currently published
-browser WASM still creates raw-only accounts and refuses EIP-712 execution.
+Both SDKs accept only the EIP-712-capable authentication root. That account contract
+still accepts ordinary raw signatures, so software wallets and EIP-712 hardware
+wallets can sign the same transaction. Browser account creation uses the vendored
+patched modules. Browser execution currently refuses EIP-712 signatures until its
+advice preparation path is added; use the Rust execution path for the prototype.
 
 Compatibility there is about the on-chain account, not Guardian's stored state.
 Adopting a new Miden line has twice required an irreversible server-side reset, so
@@ -1802,14 +1792,10 @@ even an account whose contract version still matches must be re-registered
 afterwards. See
 [`MIDEN_COMPATIBILITY.md`](./MIDEN_COMPATIBILITY.md#data-resets).
 
-Both SDKs enforce the registry at runtime rather than trusting the table. A mismatch
-fails loudly — Rust `MultisigError::UnsupportedContractVersion` (from
-`MultisigAccount::contract_version`, threshold reads, and everything built on them),
-or a TypeScript `unsupported contract version` error — instead of silently reporting
-wrong thresholds. Rust exposes the detected variant through
-`MultisigAccount::contract_version()`; `is_pinned_contract_version()` remains as a
-backward-compatible boolean alias for "is supported". When a new contract version is
-adopted, add its roots and compatibility tests in the same change.
+Both SDKs enforce the expected root at runtime. A mismatch fails loudly — Rust
+`MultisigError::UnsupportedContractVersion` or a TypeScript `unsupported contract
+version` error — instead of silently reporting wrong thresholds. Rust exposes the
+boolean check through `is_pinned_contract_version()`.
 
 ---
 

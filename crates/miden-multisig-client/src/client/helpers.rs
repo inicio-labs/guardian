@@ -431,7 +431,7 @@ impl MultisigClient {
         if let Some(endpoint) = new_guardian_endpoint {
             let switching_endpoint = endpoint != self.guardian_endpoint;
             self.guardian_endpoint = endpoint;
-            self.account = Some(MultisigAccount::new(updated_account.clone()));
+            self.account = Some(MultisigAccount::new(updated_account.clone())?);
 
             if switching_endpoint {
                 self.register_on_guardian().await.map_err(|e| {
@@ -442,7 +442,7 @@ impl MultisigClient {
                 })?;
             }
         } else {
-            let multisig_account = MultisigAccount::new(updated_account);
+            let multisig_account = MultisigAccount::new(updated_account)?;
             self.account = Some(multisig_account);
         }
 

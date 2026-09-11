@@ -420,7 +420,7 @@ mod tests {
     async fn load_account(client: &mut MultisigClient, seed: u8) {
         let account = test_wallet(seed);
         client.add_or_update_account(&account, true).await.unwrap();
-        client.account = Some(MultisigAccount::new(account));
+        client.account = Some(MultisigAccount::new_unchecked(account));
     }
 
     #[tokio::test]

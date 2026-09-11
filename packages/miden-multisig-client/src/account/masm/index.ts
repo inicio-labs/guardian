@@ -2,3 +2,4 @@
 // Do not edit it by hand.
 
 export * from './account-components/auth.js';
+export * from './libraries/auth.js';

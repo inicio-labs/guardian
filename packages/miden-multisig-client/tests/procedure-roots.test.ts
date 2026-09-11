@@ -40,8 +40,7 @@ describe('procedure roots', () => {
     const generated = loadGeneratedProcedureRoots();
 
     for (const procedure of generated.procedure_roots) {
-      const version = procedure.name === 'auth_tx' ? 'miden-0.16-eip712' : 'miden-0.16-raw';
-      expect(getProcedureRoot(procedure.name, version)).toBe(procedure.typescript_hex);
+      expect(getProcedureRoot(procedure.name)).toBe(procedure.typescript_hex);
     }
   });
 
@@ -56,13 +55,10 @@ describe('procedure roots', () => {
     expect(PROCEDURE_ROOTS.send_asset).not.toBe(sendAsset?.rust_hex);
   });
 
-  it('keeps the original 0.16 raw auth root in the compatibility registry', () => {
+  it('uses only the EIP-712-capable authentication root', () => {
+    expect(getProcedureRoot('auth_tx')).toBe(
+      '0x9e1279297e9d4f334f23bb45c3b31cee0364114f2044110480444f99eaddd6e2',
+    );
     expect(getProcedureRoot('auth_tx')).toBe(PROCEDURE_ROOTS.auth_tx);
-    expect(getProcedureRoot('auth_tx', 'miden-0.16-raw')).toBe(
-      '0xa6aa6f69d9358535272ba433cd48d20628a5c69598e00c6dd01a22e83a5f15df',
-    );
-    expect(getProcedureRoot('send_asset', 'miden-0.16-raw')).toBe(
-      PROCEDURE_ROOTS.send_asset,
-    );
   });
 });

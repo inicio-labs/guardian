@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMultisigAccount, validateMultisigConfig } from './builder.js';
 import { GUARDED_MULTISIG_ACCOUNT_COMPONENT_MASM } from './masm/account-components/auth.js';
+import {
+  EIP712_LIBRARY_MASM,
+  MULTISIG_LIBRARY_MASM,
+  SIGNATURE_LIBRARY_MASM,
+} from './masm/libraries/auth.js';
 
 const {
   buildMultisigStorageSlots,
@@ -92,7 +97,8 @@ describe('createMultisigAccount', () => {
 
   function makeClient() {
     const authBuilder = {
-      linkModule: vi.fn(),
+      buildLibrary: vi.fn((namespace, source) => ({ namespace, source })),
+      linkStaticLibrary: vi.fn(),
       compileAccountComponentCode: vi.fn((source) => ({ source })),
     };
     const webClient = {
@@ -104,7 +110,7 @@ describe('createMultisigAccount', () => {
     return { authBuilder, webClient };
   }
 
-  it('compiles the guarded component without re-linking SDK-provided modules (Falcon)', async () => {
+  it('compiles the EIP-712-capable guarded component for Falcon', async () => {
     const { authBuilder, webClient } = makeClient();
 
     await createMultisigAccount(
@@ -117,9 +123,12 @@ describe('createMultisigAccount', () => {
       'http://localhost:57291',
     );
 
-    // The web SDK assembler already provides `miden::standards::auth::*`; re-linking would
-    // raise a duplicate-definition error, so the builder must NOT call linkModule.
-    expect(authBuilder.linkModule).not.toHaveBeenCalled();
+    expect(authBuilder.buildLibrary.mock.calls).toEqual([
+      ['guardian_sdk::auth::eip712', EIP712_LIBRARY_MASM],
+      ['guardian_sdk::auth::signature', SIGNATURE_LIBRARY_MASM],
+      ['guardian_sdk::auth::multisig', MULTISIG_LIBRARY_MASM],
+    ]);
+    expect(authBuilder.linkStaticLibrary).toHaveBeenCalledTimes(3);
     expect(authBuilder.compileAccountComponentCode).toHaveBeenCalledWith(
       GUARDED_MULTISIG_ACCOUNT_COMPONENT_MASM,
     );
@@ -140,7 +149,8 @@ describe('createMultisigAccount', () => {
       'http://localhost:57291',
     );
 
-    expect(authBuilder.linkModule).not.toHaveBeenCalled();
+    expect(authBuilder.buildLibrary).toHaveBeenCalledTimes(3);
+    expect(authBuilder.linkStaticLibrary).toHaveBeenCalledTimes(3);
     expect(authBuilder.compileAccountComponentCode).toHaveBeenCalledWith(
       GUARDED_MULTISIG_ACCOUNT_COMPONENT_MASM,
     );

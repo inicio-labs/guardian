@@ -76,20 +76,4 @@ describe('AccountInspector round-trip against a Rust-built account', () => {
     expect(detected.signerCommitments).toEqual(fixture.signer_commitments);
     expect(detected.guardianCommitment).toBe(fixture.guardian_commitment);
   });
-
-  // The original #306 failure: the SDK's AccountInterface did not recognize
-  // the previous OpenZeppelin auth component, so getPublicKeyCommitments()
-  // returned []. With the upstream AuthGuardedMultisig component it must
-  // return the approver commitments natively.
-  it('getPublicKeyCommitments() works natively on the upstream component (issue #306)', () => {
-    const fixture = loadFixture();
-    const account = Account.deserialize(hexToBytes(fixture.account_hex));
-
-    const native = account.getPublicKeyCommitments().map((word) => word.toHex());
-
-    expect(native.length).toBeGreaterThan(0);
-    for (const signer of fixture.signer_commitments) {
-      expect(native).toContain(signer);
-    }
-  });
 });

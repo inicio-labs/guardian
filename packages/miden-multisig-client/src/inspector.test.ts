@@ -59,7 +59,7 @@ vi.mock('@miden-sdk/miden-sdk', () => {
           code: () => ({
             hasProcedure: (root: { toHex: () => string }) =>
               root.toHex() ===
-              '0xa6aa6f69d9358535272ba433cd48d20628a5c69598e00c6dd01a22e83a5f15df',
+              '0x9e1279297e9d4f334f23bb45c3b31cee0364114f2044110480444f99eaddd6e2',
           }),
           vault: () => createMockVault([
             { faucetId: '0xfaucet1', amount: 1000n },
@@ -83,8 +83,8 @@ vi.mock('@miden-sdk/miden-sdk', () => {
   };
 });
 
-const hasRawAuthProcedure = (root: { toHex: () => string }): boolean =>
-  root.toHex() === getProcedureRoot('auth_tx', 'miden-0.16-raw');
+const hasSupportedAuthProcedure = (root: { toHex: () => string }): boolean =>
+  root.toHex() === getProcedureRoot('auth_tx');
 
 describe('AccountInspector', () => {
   beforeEach(() => {
@@ -159,36 +159,24 @@ describe('AccountInspector', () => {
       );
     });
 
-    it('reads an auth_tx override with the legacy raw contract root', async () => {
+    it('rejects an account with the legacy raw-only authenticator', async () => {
       const { Account } = await import('@miden-sdk/miden-sdk');
       const account = Account.deserialize(new Uint8Array([1, 2, 3]));
-      const legacyAuthRoot = getProcedureRoot('auth_tx', 'miden-0.16-raw');
+      const legacyAuthRoot =
+        '0xa6aa6f69d9358535272ba433cd48d20628a5c69598e00c6dd01a22e83a5f15df';
       const legacy = {
         ...account,
         code: () => ({
           hasProcedure: (root: { toHex: () => string }) => root.toHex() === legacyAuthRoot,
         }),
-        storage: () => ({
-          getItem: () => ({ toU64s: () => [2n, 0n, 0n, 0n] }),
-          getMapItem: (slotName: string, key: { toHex?: () => string }) => {
-            if (
-              slotName === 'miden::standards::auth::multisig::procedure_thresholds' &&
-              key.toHex?.() === legacyAuthRoot
-            ) {
-              return { toU64s: () => [3n, 0n, 0n, 0n] };
-            }
-            return undefined;
-          },
-        }),
-        vault: () => ({ fungibleAssets: () => [] }),
       };
 
-      const config = AccountInspector.fromAccount(legacy as never);
-
-      expect(config.procedureThresholds.get('auth_tx')).toBe(3);
+      expect(() => AccountInspector.fromAccount(legacy as never)).toThrow(
+        /unsupported contract version/,
+      );
     });
 
-    it('rejects accounts that expose both supported auth roots', async () => {
+    it('rejects accounts that expose both the current and legacy auth roots', async () => {
       const { Account } = await import('@miden-sdk/miden-sdk');
       const account = Account.deserialize(new Uint8Array([1, 2, 3]));
       const ambiguous = {
@@ -197,7 +185,7 @@ describe('AccountInspector', () => {
       };
 
       expect(() => AccountInspector.fromAccount(ambiguous as never)).toThrow(
-        /ambiguous contract version/,
+        /unsupported contract version/,
       );
     });
   });
@@ -213,7 +201,7 @@ describe('AccountInspector edge cases', () => {
 
     // Override mock for this test: no guardian pub_key entry present.
     vi.mocked(Account.deserialize).mockReturnValueOnce({
-      code: () => ({ hasProcedure: hasRawAuthProcedure }),
+      code: () => ({ hasProcedure: hasSupportedAuthProcedure }),
       storage: () => ({
         getItem: (slotName: string) => {
           if (slotName === 'miden::standards::auth::multisig::threshold_config') return { toU64s: () => [1n, 1n, 0n, 0n] };
@@ -244,7 +232,7 @@ describe('AccountInspector edge cases', () => {
     const { Account } = await import('@miden-sdk/miden-sdk');
 
     vi.mocked(Account.deserialize).mockReturnValueOnce({
-      code: () => ({ hasProcedure: hasRawAuthProcedure }),
+      code: () => ({ hasProcedure: hasSupportedAuthProcedure }),
       storage: () => ({
         getItem: () => ({ toU64s: () => [1n, 1n, 0n, 0n] }),
         getMapItem: () => {
@@ -266,7 +254,7 @@ describe('AccountInspector edge cases', () => {
     const { Account } = await import('@miden-sdk/miden-sdk');
 
     vi.mocked(Account.deserialize).mockReturnValueOnce({
-      code: () => ({ hasProcedure: hasRawAuthProcedure }),
+      code: () => ({ hasProcedure: hasSupportedAuthProcedure }),
       storage: () => ({
         getItem: (slotName: string) => {
           if (slotName === 'miden::standards::auth::multisig::threshold_config') return { toU64s: () => [2n, 5n, 0n, 0n] }; // threshold=2, numSigners=5
@@ -293,7 +281,7 @@ describe('AccountInspector edge cases', () => {
     const { Account } = await import('@miden-sdk/miden-sdk');
 
     vi.mocked(Account.deserialize).mockReturnValueOnce({
-      code: () => ({ hasProcedure: hasRawAuthProcedure }),
+      code: () => ({ hasProcedure: hasSupportedAuthProcedure }),
       storage: () => ({
         getItem: () => ({ toU64s: () => [1n, 1n, 0n, 0n] }),
         getMapItem: () => {
@@ -354,7 +342,7 @@ describe('AccountInspector.getSignerPublicKeyCommitments', () => {
       ['1', { toU64s: () => [5n, 6n, 7n, 8n], toHex: () => '0x' + 'b'.repeat(64) }],
     ]);
     vi.mocked(Account.deserialize).mockReturnValueOnce({
-      code: () => ({ hasProcedure: hasRawAuthProcedure }),
+      code: () => ({ hasProcedure: hasSupportedAuthProcedure }),
       storage: () => ({
         getItem: (slotName: string) => {
           if (slotName === 'miden::standards::auth::multisig::threshold_config') return { toU64s: () => [2n, 5n, 0n, 0n] };
@@ -379,7 +367,7 @@ describe('AccountInspector.getSignerPublicKeyCommitments', () => {
     const { Account } = await import('@miden-sdk/miden-sdk');
 
     vi.mocked(Account.deserialize).mockReturnValueOnce({
-      code: () => ({ hasProcedure: hasRawAuthProcedure }),
+      code: () => ({ hasProcedure: hasSupportedAuthProcedure }),
       storage: () => ({
         getItem: (slotName: string) => {
           if (slotName === 'miden::standards::auth::multisig::threshold_config') return { toU64s: () => [2n, 3n, 0n, 0n] };
@@ -400,7 +388,7 @@ describe('AccountInspector.getSignerPublicKeyCommitments', () => {
     const { Account } = await import('@miden-sdk/miden-sdk');
 
     vi.mocked(Account.deserialize).mockReturnValueOnce({
-      code: () => ({ hasProcedure: hasRawAuthProcedure }),
+      code: () => ({ hasProcedure: hasSupportedAuthProcedure }),
       storage: () => ({
         getItem: () => undefined,
         getMapItem: () => undefined,
@@ -418,7 +406,7 @@ describe('AccountInspector.getSignerPublicKeyCommitments', () => {
     const { Account } = await import('@miden-sdk/miden-sdk');
 
     vi.mocked(Account.deserialize).mockReturnValueOnce({
-      code: () => ({ hasProcedure: hasRawAuthProcedure }),
+      code: () => ({ hasProcedure: hasSupportedAuthProcedure }),
       storage: () => ({
         getItem: () => ({ toU64s: () => [0n, 0n, 0n, 0n] }),
         getMapItem: () => undefined,
@@ -440,7 +428,7 @@ describe('AccountInspector.getSignerPublicKeyCommitments', () => {
       const { Account } = await import('@miden-sdk/miden-sdk');
 
       vi.mocked(Account.deserialize).mockReturnValueOnce({
-        code: () => ({ hasProcedure: hasRawAuthProcedure }),
+        code: () => ({ hasProcedure: hasSupportedAuthProcedure }),
         storage: () => ({
           getItem: () => ({ toU64s: () => [2n, count, 0n, 0n] }),
           getMapItem: () => ({ toU64s: () => [1n, 2n, 3n, 4n], toHex: () => '0x' + 'a'.repeat(64) }),
@@ -461,7 +449,7 @@ describe('AccountInspector.getSignerPublicKeyCommitments', () => {
     // wasm-bindgen's _assertClass rejects Word instances from another
     // bundled SDK copy with this exact message.
     vi.mocked(Account.deserialize).mockReturnValueOnce({
-      code: () => ({ hasProcedure: hasRawAuthProcedure }),
+      code: () => ({ hasProcedure: hasSupportedAuthProcedure }),
       storage: () => ({
         getItem: (slotName: string) => {
           if (slotName === 'miden::standards::auth::multisig::threshold_config') return { toU64s: () => [1n, 1n, 0n, 0n] };
@@ -512,7 +500,7 @@ describe('AccountInspector.getGuardianPublicKeyCommitment', () => {
     const { Account } = await import('@miden-sdk/miden-sdk');
 
     vi.mocked(Account.deserialize).mockReturnValueOnce({
-      code: () => ({ hasProcedure: hasRawAuthProcedure }),
+      code: () => ({ hasProcedure: hasSupportedAuthProcedure }),
       storage: () => ({
         getItem: () => ({ toU64s: () => [1n, 1n, 0n, 0n] }),
         getMapItem: () => ({ toU64s: () => [0n, 0n, 0n, 0n] }),
@@ -530,7 +518,7 @@ describe('AccountInspector.getGuardianPublicKeyCommitment', () => {
     const { Account } = await import('@miden-sdk/miden-sdk');
 
     vi.mocked(Account.deserialize).mockReturnValueOnce({
-      code: () => ({ hasProcedure: hasRawAuthProcedure }),
+      code: () => ({ hasProcedure: hasSupportedAuthProcedure }),
       storage: () => ({
         getItem: () => ({ toU64s: () => [1n, 1n, 0n, 0n] }),
         getMapItem: () => {

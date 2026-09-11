@@ -9,7 +9,7 @@ use miden_protocol::account::{
 use miden_standards::account::auth::AuthGuardedMultisig;
 
 use crate::error::{MultisigError, Result};
-use crate::procedures::{MultisigContractVersion, ProcedureName};
+use crate::procedures::ProcedureName;
 use crate::proposal::TransactionType;
 
 /// `AuthGuardedMultisig` storage slot names (`miden::standards::auth::*`), sourced from the
@@ -27,15 +27,6 @@ fn guardian_public_key_slot() -> &'static str {
     AuthGuardedMultisig::guardian_public_key_slot().as_str()
 }
 
-fn contract_version_from_auth_root(auth_root: Word) -> Option<MultisigContractVersion> {
-    [
-        MultisigContractVersion::Miden016Eip712,
-        MultisigContractVersion::Miden016Raw,
-    ]
-    .into_iter()
-    .find(|version| auth_root == ProcedureName::AuthTx.root_for(*version))
-}
-
 /// Wrapper around a Miden Account with multisig-specific helpers.
 ///
 /// This provides convenient access to multisig configuration stored in account storage:
@@ -51,8 +42,15 @@ pub struct MultisigAccount {
 }
 
 impl MultisigAccount {
-    /// Creates a new MultisigAccount wrapper.
-    pub fn new(account: Account) -> Self {
+    /// Wraps an account after verifying that it uses the supported authenticator.
+    pub fn new(account: Account) -> Result<Self> {
+        let account = Self { account };
+        account.assert_pinned_contract_version()?;
+        Ok(account)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_unchecked(account: Account) -> Self {
         Self { account }
     }
 
@@ -116,30 +114,25 @@ impl MultisigAccount {
         Ok(slot_value[1].as_canonical_u64() as u32)
     }
 
-    /// Detects the guarded-multisig version from the account's first (authentication) procedure.
-    pub fn contract_version(&self) -> Result<MultisigContractVersion> {
-        let version = self
-            .account
-            .code()
-            .procedure_roots()
-            .next()
-            .and_then(contract_version_from_auth_root);
+    /// Returns the procedure root used by this account.
+    pub fn procedure_root(&self, procedure: ProcedureName) -> Result<Word> {
+        self.assert_pinned_contract_version()?;
+        Ok(procedure.root())
+    }
 
-        version.ok_or(MultisigError::UnsupportedContractVersion {
+    /// Returns whether this account uses the EIP-712-capable guarded-multisig authenticator.
+    pub fn is_pinned_contract_version(&self) -> bool {
+        self.account.code().procedure_roots().next() == Some(ProcedureName::AuthTx.root())
+    }
+
+    pub(crate) fn assert_pinned_contract_version(&self) -> Result<()> {
+        if self.is_pinned_contract_version() {
+            return Ok(());
+        }
+
+        Err(MultisigError::UnsupportedContractVersion {
             account_id: self.account.id(),
         })
-    }
-
-    /// Returns the procedure root used by this account's immutable contract version.
-    pub fn procedure_root(&self, procedure: ProcedureName) -> Result<Word> {
-        Ok(procedure.root_for(self.contract_version()?))
-    }
-
-    /// Returns whether this SDK supports the account's guarded-multisig version.
-    ///
-    /// The original method name is retained for API compatibility.
-    pub fn is_pinned_contract_version(&self) -> bool {
-        self.contract_version().is_ok()
     }
 
     /// Returns the configured threshold override for a specific procedure, if present.
@@ -277,7 +270,7 @@ impl MultisigAccount {
         procedure: ProcedureName,
         threshold: u32,
     ) -> Result<Self> {
-        let contract_version = self.contract_version()?;
+        self.assert_pinned_contract_version()?;
         let mut overrides = self.procedure_threshold_overrides()?;
         overrides.retain(|(current, _)| *current != procedure);
         if threshold > 0 {
@@ -293,7 +286,7 @@ impl MultisigAccount {
             })?;
         let entries = overrides.into_iter().map(|(procedure, threshold)| {
             (
-                StorageMapKey::new(procedure.root_for(contract_version)),
+                StorageMapKey::new(procedure.root()),
                 Word::from([threshold, 0, 0, 0]),
             )
         });
@@ -314,7 +307,7 @@ impl MultisigAccount {
         })?;
         let account = Account::new_unchecked(id, vault, storage, code, nonce, seed);
 
-        Ok(Self::new(account))
+        Self::new(account)
     }
 }
 
@@ -348,7 +341,7 @@ mod tests {
             .build()
             .expect("account builds");
 
-        MultisigAccount::new(account)
+        MultisigAccount::new(account).expect("supported multisig account")
     }
 
     /// Parity with `validateMultisigConfig` in the TypeScript client: an override above the
@@ -412,15 +405,13 @@ mod tests {
         let storage = AccountStorage::new(storage_slots).expect("valid storage");
         let account = Account::new_unchecked(id, vault, storage, code, nonce, seed);
 
-        MultisigAccount::new(account)
+        MultisigAccount::new(account).expect("supported multisig account")
     }
 
-    /// An account built from a different contract version (here: `NoAuth` +
-    /// `BasicWallet`, which lacks a supported guarded-multisig auth procedure)
-    /// must fail root-keyed threshold reads loudly instead of silently
-    /// reporting the default threshold.
+    /// An account without the supported guarded-multisig authenticator must be
+    /// rejected when it is wrapped.
     #[test]
-    fn procedure_threshold_rejects_foreign_contract_version() {
+    fn constructor_rejects_unsupported_account() {
         use miden_protocol::account::AccountBuilder;
         use miden_standards::account::auth::NoAuth;
         use miden_standards::account::wallets::BasicWallet;
@@ -430,12 +421,7 @@ mod tests {
             .with_component(BasicWallet)
             .build_existing()
             .expect("account builds");
-        let account = MultisigAccount::new(account);
-
-        assert!(!account.is_pinned_contract_version());
-        let err = account
-            .procedure_threshold(ProcedureName::SendAsset)
-            .unwrap_err();
+        let err = MultisigAccount::new(account).unwrap_err();
         assert!(matches!(
             err,
             MultisigError::UnsupportedContractVersion { .. }
@@ -443,37 +429,15 @@ mod tests {
     }
 
     #[test]
-    fn contract_version_registry_recognizes_raw_and_eip712_auth_roots() {
-        assert_eq!(
-            contract_version_from_auth_root(
-                ProcedureName::AuthTx.root_for(MultisigContractVersion::Miden016Raw)
-            ),
-            Some(MultisigContractVersion::Miden016Raw)
-        );
-        assert_eq!(
-            contract_version_from_auth_root(
-                ProcedureName::AuthTx.root_for(MultisigContractVersion::Miden016Eip712)
-            ),
-            Some(MultisigContractVersion::Miden016Eip712)
-        );
-        assert_eq!(contract_version_from_auth_root(word(123)), None);
-    }
-
-    #[test]
-    fn current_builder_uses_eip712_contract_version() {
+    fn current_builder_uses_eip712_authenticator() {
         let account = build_test_account();
 
-        assert_eq!(
-            account
-                .contract_version()
-                .expect("supported contract version"),
-            MultisigContractVersion::Miden016Eip712
-        );
+        assert!(account.is_pinned_contract_version());
         assert_eq!(
             account
                 .procedure_root(ProcedureName::AuthTx)
                 .expect("auth root"),
-            ProcedureName::AuthTx.root_for(MultisigContractVersion::Miden016Eip712)
+            ProcedureName::AuthTx.root()
         );
     }
 

@@ -110,12 +110,10 @@ pub enum MultisigError {
     #[error("account storage error: {0}")]
     AccountStorage(String),
 
-    /// The account uses a guarded-multisig contract version this SDK does not recognize.
+    /// The account does not use the supported guarded-multisig authenticator.
     #[error(
-        "unsupported contract version for account {account_id}: its code does not carry \
-         a supported guarded-multisig auth procedure; use an SDK release matching the \
-         contract version the account was created with (see docs/MULTISIG_SDK.md, \
-         \"Contract version pinning\")"
+        "unsupported multisig account {account_id}: recreate it with this SDK so it uses \
+         the EIP-712-capable guarded-multisig authenticator"
     )]
     UnsupportedContractVersion { account_id: AccountId },
 

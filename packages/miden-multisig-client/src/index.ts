@@ -180,14 +180,10 @@ export {
 } from './utils/encoding.js';
 
 export {
-  BUNDLED_WASM_CONTRACT_VERSION,
   PROCEDURE_ROOTS,
-  getAccountProcedureRoot,
-  getMultisigContractVersion,
   getProcedureRoot,
   isProcedureName,
   getProcedureNames,
-  type MultisigContractVersion,
   type ProcedureName,
 } from './procedures.js';
 

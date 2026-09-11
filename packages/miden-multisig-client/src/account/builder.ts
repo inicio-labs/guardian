@@ -15,13 +15,29 @@ import type { MultisigConfig, CreateAccountResult } from '../types.js';
 import { getRawMidenClient } from '../raw-client.js';
 import { buildMultisigStorageSlots, buildGuardianStorageSlots } from './storage.js';
 import { GUARDED_MULTISIG_ACCOUNT_COMPONENT_MASM } from './masm/account-components/auth.js';
+import {
+  EIP712_LIBRARY_MASM,
+  MULTISIG_LIBRARY_MASM,
+  SIGNATURE_LIBRARY_MASM,
+} from './masm/libraries/auth.js';
 import { normalizeSignerCommitment } from '../utils/signature.js';
 
-/** Builds the guarded-multisig component without relinking assembler-provided libraries. */
+const AUTH_LIBRARY_SOURCES = [
+  ['guardian_sdk::auth::eip712', EIP712_LIBRARY_MASM],
+  ['guardian_sdk::auth::signature', SIGNATURE_LIBRARY_MASM],
+  ['guardian_sdk::auth::multisig', MULTISIG_LIBRARY_MASM],
+] as const;
+
+/** Builds the guarded-multisig component from the vendored authentication modules. */
 function buildGuardedMultisigComponent(
   authBuilder: Awaited<ReturnType<WasmWebClient['createCodeBuilder']>>,
   config: MultisigConfig,
 ): AccountComponent {
+  for (const [namespace, source] of AUTH_LIBRARY_SOURCES) {
+    const library = authBuilder.buildLibrary(namespace, source);
+    authBuilder.linkStaticLibrary(library);
+  }
+
   const authSlots = [
     ...buildMultisigStorageSlots(config),
     ...buildGuardianStorageSlots(config),

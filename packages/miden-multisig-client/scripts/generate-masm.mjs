@@ -7,14 +7,26 @@ const packageRoot = path.resolve(scriptDir, '..');
 const packageMasmDir = path.join(packageRoot, 'masm');
 const generatedAccountDir = path.join(packageRoot, 'src', 'account');
 
-// Only the guarded-multisig account-component shell is vendored and compiled. Its
-// `miden::standards::auth::*` library dependencies are provided by the web SDK assembler at
-// compile time (re-linking them raises a duplicate-definition error), so they are NOT vendored.
 const masmFiles = [
   {
     packagedPath: ['account_components', 'auth', 'guarded_multisig.masm'],
     exportName: 'GUARDED_MULTISIG_ACCOUNT_COMPONENT_MASM',
     generatedPath: ['masm', 'account-components', 'auth.ts'],
+  },
+  {
+    packagedPath: ['libraries', 'auth', 'eip712.masm'],
+    exportName: 'EIP712_LIBRARY_MASM',
+    generatedPath: ['masm', 'libraries', 'auth.ts'],
+  },
+  {
+    packagedPath: ['libraries', 'auth', 'signature.masm'],
+    exportName: 'SIGNATURE_LIBRARY_MASM',
+    generatedPath: ['masm', 'libraries', 'auth.ts'],
+  },
+  {
+    packagedPath: ['libraries', 'auth', 'multisig.masm'],
+    exportName: 'MULTISIG_LIBRARY_MASM',
+    generatedPath: ['masm', 'libraries', 'auth.ts'],
   },
 ];
 
@@ -82,6 +94,7 @@ writeIfChanged(
 // Do not edit it by hand.
 
 export * from './account-components/auth.js';
+export * from './libraries/auth.js';
 `,
 );
 

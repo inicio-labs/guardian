@@ -16,7 +16,7 @@ import type {
   ProposalSignatureEntry,
   ProposalType,
 } from './types.js';
-import { getAccountProcedureRoot, type ProcedureName } from './procedures.js';
+import { getProcedureRoot, type ProcedureName } from './procedures.js';
 import type {
   MidenClient,
   WasmWebClient,
@@ -1011,7 +1011,7 @@ export class Multisig {
       targetThreshold,
       {
         signatureScheme: this.signer.scheme,
-        targetProcedureRoot: getAccountProcedureRoot(this.account, targetProcedure),
+        targetProcedureRoot: getProcedureRoot(targetProcedure),
       },
     );
 
@@ -2594,10 +2594,7 @@ export class Multisig {
             salt,
             signatureAdviceMap,
             signatureScheme: this.signer.scheme,
-            targetProcedureRoot: getAccountProcedureRoot(
-              this.account,
-              metadata.targetProcedure,
-            ),
+            targetProcedureRoot: getProcedureRoot(metadata.targetProcedure),
           }
         );
         return request;

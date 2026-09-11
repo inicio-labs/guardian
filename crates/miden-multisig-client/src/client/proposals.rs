@@ -308,13 +308,13 @@ impl MultisigClient {
         // Build signature advice from cosigner signatures
         // Important: Use CURRENT account signers for validation, not proposal's new signers.
         // The on-chain MASM verifies signatures against the currently stored public keys.
+        account.assert_pinned_contract_version()?;
         let required_commitments: HashSet<String> =
             account.cosigner_commitments_hex().into_iter().collect();
         let mut signature_advice = collect_signature_advice(
             signature_inputs,
             &required_commitments,
             tx_summary_commitment,
-            account.contract_version()?,
         )?;
 
         if proposal.transaction_type.requires_guardian_ack() {
@@ -566,13 +566,13 @@ impl MultisigClient {
         signature_inputs.sort_by(|a, b| a.signer_commitment.cmp(&b.signer_commitment));
         signature_inputs.dedup_by(|a, b| a.signer_commitment == b.signer_commitment);
 
+        account.assert_pinned_contract_version()?;
         let required_commitments: HashSet<String> =
             account.cosigner_commitments_hex().into_iter().collect();
         let mut signature_advice = collect_signature_advice(
             signature_inputs,
             &required_commitments,
             tx_summary_commitment,
-            account.contract_version()?,
         )?;
 
         if proposal.transaction_type.requires_guardian_ack() {

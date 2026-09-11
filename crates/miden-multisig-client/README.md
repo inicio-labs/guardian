@@ -28,10 +28,9 @@ All Guardian clients and servers handling EIP-712 proposals must run this
 version; mixed-version peers do not preserve the EIP-712 wire field.
 External ECDSA public keys may use compressed or uncompressed SEC1 encoding,
 and recovery IDs may use either `0/1` or Ethereum's `27/28` form.
-The SDK recognizes both the original raw-only 0.16 account and the patched
-EIP-712 0.16 account by their immutable authentication root. Existing accounts
-remain raw-only; new accounts built with the patched Rust protocol dependency
-use the EIP-712-capable variant.
+The SDK supports only accounts built with the patched EIP-712-capable
+authenticator. These accounts accept both raw and EIP-712 signatures. Accounts
+created with the original raw-only 0.16 authenticator must be recreated.
 
 ## Miden compatibility
 

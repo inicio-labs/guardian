@@ -22,7 +22,7 @@ use super::{MultisigClient, StateVerificationResult};
 use crate::account::MultisigAccount;
 use crate::error::{MultisigError, Result};
 use crate::keystore::word_from_hex;
-use crate::procedures::{MultisigContractVersion, ProcedureThreshold};
+use crate::procedures::ProcedureThreshold;
 use crate::transaction::word_to_hex;
 
 impl MultisigClient {
@@ -105,13 +105,7 @@ impl MultisigClient {
         // Convert procedure thresholds to (Word, u32) pairs
         let overrides: Vec<(Word, u32)> = proc_threshold_overrides
             .iter()
-            .map(|pt| {
-                (
-                    pt.procedure
-                        .root_for(MultisigContractVersion::Miden016Eip712),
-                    pt.threshold,
-                )
-            })
+            .map(|pt| (pt.procedure.root(), pt.threshold))
             .collect();
 
         // Create the multisig account config
@@ -129,11 +123,9 @@ impl MultisigClient {
             .build()
             .map_err(|e| MultisigError::MidenClient(format!("failed to build account: {}", e)))?;
 
-        // Add to miden-client
-        self.add_or_update_account(&account, false).await?;
-
-        // Wrap in MultisigAccount and store
-        let multisig_account = MultisigAccount::new(account);
+        let multisig_account = MultisigAccount::new(account)?;
+        self.add_or_update_account(multisig_account.inner(), false)
+            .await?;
         self.account = Some(multisig_account);
 
         Ok(self.account.as_ref().unwrap())
@@ -168,9 +160,9 @@ impl MultisigClient {
             MultisigError::MidenClient(format!("failed to deserialize account: {}", e))
         })?;
 
-        self.add_or_update_account(&account, true).await?;
-
-        let multisig_account = MultisigAccount::new(account);
+        let multisig_account = MultisigAccount::new(account)?;
+        self.add_or_update_account(multisig_account.inner(), true)
+            .await?;
         self.account = Some(multisig_account);
 
         Ok(self.account.as_ref().unwrap())
@@ -265,7 +257,7 @@ impl MultisigClient {
                     MultisigError::MissingConfig("account not found after sync".to_string())
                 })?;
             let account: Account = account_record;
-            let refreshed = MultisigAccount::new(account);
+            let refreshed = MultisigAccount::new(account)?;
             self.account = Some(refreshed);
         }
 
@@ -352,21 +344,25 @@ impl MultisigClient {
         let fresh_account = Account::read_from_bytes(&account_bytes).map_err(|e| {
             MultisigError::MidenClient(format!("failed to deserialize account: {}", e))
         })?;
+        let fresh_account = MultisigAccount::new(fresh_account)?;
 
         // Compare nonces - if local is newer or equal, don't overwrite with GUARDIAN's older state.
         // This happens after executing a transaction before GUARDIAN canonicalizes.
-        let guardian_nonce = fresh_account.nonce().as_canonical_u64();
+        let guardian_nonce = fresh_account.nonce();
         if local_nonce >= guardian_nonce {
             // Local state is newer, skip GUARDIAN update
             return Ok(false);
         }
 
-        self.ensure_safe_to_overwrite_local_state(account_id, fresh_account.to_commitment())
+        self.ensure_safe_to_overwrite_local_state(account_id, fresh_account.commitment())
             .await?;
 
         // GUARDIAN has newer state - try to add/update.
         // If we get a commitment mismatch (locked state), reset and retry.
-        match self.add_or_update_account(&fresh_account, true).await {
+        match self
+            .add_or_update_account(fresh_account.inner(), true)
+            .await
+        {
             Ok(()) => {}
             Err(e)
                 if e.to_string()
@@ -374,13 +370,13 @@ impl MultisigClient {
             {
                 // Reset miden-client and try again with fresh state
                 self.reset_miden_client().await?;
-                self.add_or_update_account(&fresh_account, true).await?;
+                self.add_or_update_account(fresh_account.inner(), true)
+                    .await?;
             }
             Err(e) => return Err(e),
         }
 
-        let multisig_account = MultisigAccount::new(fresh_account);
-        self.account = Some(multisig_account);
+        self.account = Some(fresh_account);
 
         Ok(true)
     }
@@ -445,15 +441,19 @@ impl MultisigClient {
             acc
         };
 
-        self.ensure_safe_to_overwrite_local_state(account_id, updated_account.to_commitment())
+        let updated_account = MultisigAccount::new(updated_account)?;
+
+        self.ensure_safe_to_overwrite_local_state(account_id, updated_account.commitment())
             .await?;
 
         // Try to add/update account. If we get a commitment mismatch, reset the miden client
         // and re-import the account fresh from GUARDIAN to recover from locked/stale state.
-        match self.add_or_update_account(&updated_account, true).await {
+        match self
+            .add_or_update_account(updated_account.inner(), true)
+            .await
+        {
             Ok(()) => {
-                let multisig_account = MultisigAccount::new(updated_account);
-                self.account = Some(multisig_account);
+                self.account = Some(updated_account);
                 Ok(())
             }
             Err(e)
@@ -489,17 +489,15 @@ impl MultisigClient {
                 let fresh_account = Account::read_from_bytes(&account_bytes).map_err(|e| {
                     MultisigError::MidenClient(format!("failed to deserialize account: {}", e))
                 })?;
+                let fresh_account = MultisigAccount::new(fresh_account)?;
 
-                self.ensure_safe_to_overwrite_local_state(
-                    account_id,
-                    fresh_account.to_commitment(),
-                )
-                .await?;
+                self.ensure_safe_to_overwrite_local_state(account_id, fresh_account.commitment())
+                    .await?;
 
-                self.add_or_update_account(&fresh_account, true).await?;
+                self.add_or_update_account(fresh_account.inner(), true)
+                    .await?;
 
-                let multisig_account = MultisigAccount::new(fresh_account);
-                self.account = Some(multisig_account);
+                self.account = Some(fresh_account);
                 Ok(())
             }
             Err(e) => Err(e),

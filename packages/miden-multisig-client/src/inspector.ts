@@ -6,10 +6,9 @@ import { Account, Word } from '@miden-sdk/miden-sdk';
 import { base64ToUint8Array } from './utils/encoding.js';
 import { isEmptyWord, wordElementToBigInt, wordToHex } from './utils/word.js';
 import {
-  getMultisigContractVersion,
+  assertSupportedMultisigAccount,
   getProcedureRoot,
   getProcedureNames,
-  type MultisigContractVersion,
   type ProcedureName,
 } from './procedures.js';
 import { MULTISIG_SLOT_NAMES, GUARDIAN_SLOT_NAMES, MAX_SIGNERS } from './account/layout.js';
@@ -59,10 +58,6 @@ export function assertCompleteDetectedConfig(
  * procedure-root-keyed maps below describe a different component, so reads
  * would silently miss its state.
  */
-function assertSupportedContractVersion(account: Account): MultisigContractVersion {
-  return getMultisigContractVersion(account);
-}
-
 function indexMapKey(index: number): Word {
   return new Word(new BigUint64Array([BigInt(index), 0n, 0n, 0n]));
 }
@@ -123,10 +118,9 @@ export class AccountInspector {
    * guarded-multisig account from its
    * `miden::standards::auth::multisig::approver_public_keys` storage map.
    *
-   * Since the account uses the upstream `AuthGuardedMultisig` component,
-   * `Account.getPublicKeyCommitments()` also returns these commitments;
-   * this accessor is the strict, layout-insulated alternative: it validates
-   * the complete set against the configured signer count and throws instead
+   * This accessor reads the patched authenticator directly because the
+   * published Miden WASM does not recognize its new authentication root. It
+   * validates the complete set against the configured signer count and throws instead
    * of silently omitting unreadable entries, and it shields consumers from
    * storage-layout changes across contract versions.
    *
@@ -148,7 +142,7 @@ export class AccountInspector {
    * @returns Signer public-key commitments as 0x-prefixed hex, ordered by signer index
    */
   static getSignerPublicKeyCommitments(account: Account): string[] {
-    assertSupportedContractVersion(account);
+    assertSupportedMultisigAccount(account);
     const storage = account.storage();
 
     const thresholdConfig = storage.getItem(MULTISIG_SLOT_NAMES.THRESHOLD_CONFIG) as
@@ -198,7 +192,7 @@ export class AccountInspector {
    * @returns The guardian commitment as 0x-prefixed hex
    */
   static getGuardianPublicKeyCommitment(account: Account): string {
-    assertSupportedContractVersion(account);
+    assertSupportedMultisigAccount(account);
     const storage = account.storage();
 
     const commitment = readMapWord(storage, GUARDIAN_SLOT_NAMES.PUBLIC_KEY, indexMapKey(0));
@@ -239,7 +233,7 @@ export class AccountInspector {
     // procedure-root-keyed read: against such an account the reads below would
     // silently miss its stored overrides (its `procedure_thresholds` map is
     // keyed by *its* roots, not this SDK's) and report wrong thresholds.
-    const contractVersion = assertSupportedContractVersion(account);
+    assertSupportedMultisigAccount(account);
 
     const storage = account.storage();
 
@@ -291,7 +285,7 @@ export class AccountInspector {
     const procedureThresholds = new Map<ProcedureName, number>();
     for (const procName of getProcedureNames()) {
       try {
-        const rootHex = getProcedureRoot(procName, contractVersion);
+        const rootHex = getProcedureRoot(procName);
         const rootWord = Word.fromHex(rootHex);
         const value = readMapWord(storage, MULTISIG_SLOT_NAMES.PROCEDURE_THRESHOLDS, rootWord);
         if (value) {

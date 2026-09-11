@@ -5,14 +5,14 @@ export const GUARDED_MULTISIG_ACCOUNT_COMPONENT_MASM = `# The MASM code of the M
 #
 # See the \`AuthGuardedMultisig\` Rust type's documentation for more details.
 
-use miden::standards::auth::multisig
+use guardian_sdk::auth::multisig
 use miden::standards::auth::guardian
 
-pub use {update_signers_and_threshold} from miden::standards::auth::multisig
-pub use {get_threshold_and_num_approvers} from miden::standards::auth::multisig
-pub use {set_procedure_threshold} from miden::standards::auth::multisig
-pub use {get_signer_at} from miden::standards::auth::multisig
-pub use {is_signer} from miden::standards::auth::multisig
+pub use {update_signers_and_threshold} from guardian_sdk::auth::multisig
+pub use {get_threshold_and_num_approvers} from guardian_sdk::auth::multisig
+pub use {set_procedure_threshold} from guardian_sdk::auth::multisig
+pub use {get_signer_at} from guardian_sdk::auth::multisig
+pub use {is_signer} from guardian_sdk::auth::multisig
 
 pub use {update_guardian_public_key} from miden::standards::auth::guardian
 

@@ -18,12 +18,13 @@ Miden multisig accounts store their authentication logic on-chain, but **their s
 
 Proposal import/export and Guardian transport preserve the per-ECDSA-signature
 `messageFormat` (`'raw'` or `'eip712'`). The current browser Miden WASM does
-not yet contain the modified multisig authenticator, so browser execution
-fails closed when an EIP-712 signature is present. The normal browser signing
-methods continue to create raw signatures. Use the Rust execution path for the
-first EIP-712 prototype. The SDK recognizes both original raw-only 0.16 accounts
-and patched EIP-712 0.16 accounts by their immutable authentication root; old
-accounts remain raw-only.
+not yet expose EIP-712 advice preparation, so browser execution fails closed
+when an EIP-712 signature is present. The package vendors the patched
+authentication modules, and browser-created accounts therefore use the same
+EIP-712-capable root as Rust. Normal browser signing methods create raw
+signatures, which remain valid for these accounts. Use the Rust execution path
+for the first EIP-712 prototype. Original raw-only 0.16 accounts are not
+supported and must be recreated.
 
 ## Installation
 
@@ -173,10 +174,9 @@ const multisig = await client.load(accountId, signer);
 
 ### Read Signer Public-Key Commitments
 
-Since accounts use the upstream `AuthGuardedMultisig` component, the Miden
-SDK's `Account.getPublicKeyCommitments()` returns the approver commitments
-natively. The `AccountInspector` accessors are the strict, layout-insulated
-alternative (issue #306): they validate the complete set against the
+The published Miden WASM's `Account.getPublicKeyCommitments()` helper does not
+recognize the patched authentication root. Use the `AccountInspector`
+accessors: they validate the complete set against the
 configured signer count and throw instead of silently omitting unreadable
 entries, and they shield consumers from storage-layout changes across
 contract versions.
@@ -203,8 +203,8 @@ change. Hot/cold roles are a consumer-side convention, not part of on-chain
 state. `getSignerPublicKeyCommitments` throws rather than silently returning
 a truncated list when any signer entry is absent; `getGuardianPublicKeyCommitment`
 throws when the guardian entry is missing (the guarded-multisig always
-includes a guardian). Both are gated on this SDK's supported contract registry
-and reject accounts carrying an unknown guarded-multisig authentication root.
+includes a guardian). Both are gated on this SDK's supported authentication root
+and reject accounts carrying any other guarded-multisig authenticator.
 
 The `Account` passed to `AccountInspector` must come from the same copy of
 `@miden-sdk/miden-sdk` that this package links. An application bundling its

@@ -139,7 +139,7 @@ async fn pre_switch_import_preserves_pending_proposal_notes_across_the_repoint()
         offline_client_parts_with_keystore(dir1.path(), api.clone(), None, keystore.clone()).await;
     author.set_node_rpc_client(api.clone());
     author.add_or_update_account(&account, true).await.unwrap();
-    author.account = Some(MultisigAccount::new(account.clone()));
+    author.account = Some(MultisigAccount::new(account.clone()).unwrap());
     author.miden_client.sync_state().await.unwrap();
 
     let salt = Word::from([5u32, 6, 7, 8]);
@@ -206,7 +206,7 @@ async fn pre_switch_import_preserves_pending_proposal_notes_across_the_repoint()
         .add_or_update_account(&account, true)
         .await
         .unwrap();
-    executor.account = Some(MultisigAccount::new(account.clone()));
+    executor.account = Some(MultisigAccount::new(account.clone()).unwrap());
     executor.miden_client.sync_state().await.unwrap();
     let before = executor
         .miden_client
@@ -287,7 +287,7 @@ async fn execute_proposal_runs_the_pre_switch_import_before_the_delta_push() {
         offline_client_parts_with_keystore(dir.path(), api.clone(), None, keystore.clone()).await;
     client.set_node_rpc_client(api.clone());
     client.add_or_update_account(&account, false).await.unwrap();
-    client.account = Some(MultisigAccount::new(account.clone()));
+    client.account = Some(MultisigAccount::new(account.clone()).unwrap());
     client.miden_client.sync_state().await.unwrap();
 
     // Mock GUARDIAN B: the switch target, serving the pubkey the proposal

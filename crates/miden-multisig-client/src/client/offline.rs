@@ -229,13 +229,13 @@ impl MultisigClient {
             .collect();
 
         // Build signature advice from cosigner signatures
+        account.assert_pinned_contract_version()?;
         let required_commitments: HashSet<String> =
             account.cosigner_commitments_hex().into_iter().collect();
         let signature_advice = collect_signature_advice(
             signature_inputs,
             &required_commitments,
             tx_summary_commitment,
-            account.contract_version()?,
         )?;
 
         // Build the final transaction request with all signatures

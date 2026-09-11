@@ -7,6 +7,7 @@ const pkgRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../.
 
 export default defineConfig({
   root: pkgRoot,
+  css: { postcss: { plugins: [] } },
   worker: { format: 'es' },
   assetsInclude: ['**/*.wasm'],
   optimizeDeps: { exclude: ['@miden-sdk/miden-sdk'] },

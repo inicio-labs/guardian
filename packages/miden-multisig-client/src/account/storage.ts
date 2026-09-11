@@ -1,7 +1,7 @@
 import type { MultisigConfig } from '../types.js';
 import { StorageSlot, StorageMap, Word } from '@miden-sdk/miden-sdk';
 import { ensureHexPrefix } from '../utils/encoding.js';
-import { BUNDLED_WASM_CONTRACT_VERSION, getProcedureRoot } from '../procedures.js';
+import { getProcedureRoot } from '../procedures.js';
 import { MULTISIG_SLOT_NAMES, GUARDIAN_SLOT_NAMES } from './layout.js';
 
 function signerMapKey(index: bigint): Word {
@@ -45,8 +45,7 @@ export class StorageLayoutBuilder {
     const procThresholdMap = new StorageMap();
     if (config.procedureThresholds) {
       for (const pt of config.procedureThresholds) {
-        // The published browser WASM still builds the raw-only 0.16 account.
-        const rootHex = getProcedureRoot(pt.procedure, BUNDLED_WASM_CONTRACT_VERSION);
+        const rootHex = getProcedureRoot(pt.procedure);
         const key = Word.fromHex(rootHex);
         const value = new Word(new BigUint64Array([BigInt(pt.threshold), 0n, 0n, 0n]));
         procThresholdMap.insert(key, value);

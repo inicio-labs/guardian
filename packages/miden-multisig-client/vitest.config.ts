@@ -12,6 +12,9 @@ const midenSdkRoot = dirname(require.resolve('@miden-sdk/miden-sdk/package.json'
 const midenWasmEntry = join(midenSdkRoot, 'dist/st/index.js');
 
 export default defineConfig({
+  css: {
+    postcss: { plugins: [] },
+  },
   resolve: {
     alias: [{ find: /^@miden-sdk\/miden-sdk$/, replacement: midenWasmEntry }],
   },
