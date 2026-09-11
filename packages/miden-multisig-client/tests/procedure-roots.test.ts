@@ -57,7 +57,7 @@ describe('procedure roots', () => {
 
   it('uses only the EIP-712-capable authentication root', () => {
     expect(getProcedureRoot('auth_tx')).toBe(
-      '0x9e1279297e9d4f334f23bb45c3b31cee0364114f2044110480444f99eaddd6e2',
+      '0xa7c5154bed43cd6bea701d3550ba9c3fbfeb524a2f4439985cd7ce48994001a4',
     );
     expect(getProcedureRoot('auth_tx')).toBe(PROCEDURE_ROOTS.auth_tx);
   });

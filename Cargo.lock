@@ -4686,8 +4686,8 @@ dependencies = [
 
 [[package]]
 name = "miden-agglayer"
-version = "0.16.0-rc.6"
-source = "git+https://github.com/inicio-labs/protocol?rev=43de5967965adef9748d2686cacb95038f120694#43de5967965adef9748d2686cacb95038f120694"
+version = "0.16.0-rc.9"
+source = "git+https://github.com/inicio-labs/protocol?rev=f70eb0257cecaa012b108c1970af38bce5572859#f70eb0257cecaa012b108c1970af38bce5572859"
 dependencies = [
  "alloy-sol-types",
  "fs-err",
@@ -4777,8 +4777,8 @@ dependencies = [
 
 [[package]]
 name = "miden-block-prover"
-version = "0.16.0-rc.6"
-source = "git+https://github.com/inicio-labs/protocol?rev=43de5967965adef9748d2686cacb95038f120694#43de5967965adef9748d2686cacb95038f120694"
+version = "0.16.0-rc.9"
+source = "git+https://github.com/inicio-labs/protocol?rev=f70eb0257cecaa012b108c1970af38bce5572859#f70eb0257cecaa012b108c1970af38bce5572859"
 dependencies = [
  "miden-protocol",
  "thiserror 2.0.19",
@@ -4786,9 +4786,9 @@ dependencies = [
 
 [[package]]
 name = "miden-client"
-version = "0.16.0-rc.3"
+version = "0.16.0-rc.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78d816a15bf81d52673b668be0e2d41c681cb861478c07480418f48705862c5d"
+checksum = "ade7087c2961fb6b3a102987c6e9c0831ba4dd154e17b481f69ff2ff8cee0ad2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4825,9 +4825,9 @@ dependencies = [
 
 [[package]]
 name = "miden-client-sqlite-store"
-version = "0.16.0-rc.3"
+version = "0.16.0-rc.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8729075614f4d993e53bcd1fe74e712f3dd1b46644842261dbb2abb081a3f211"
+checksum = "2378c4453ca0ac5d716174fcca9f024a831de8ff48c280152ffe8d12d6c3d1ab"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4840,6 +4840,7 @@ dependencies = [
  "rusqlite_migration",
  "thiserror 2.0.19",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -5158,9 +5159,9 @@ dependencies = [
 
 [[package]]
 name = "miden-node-proto-build"
-version = "0.16.0-rc.3"
+version = "0.16.0-rc.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95d4ad1fbf4904ea2f211f54ff53439f9a3ecb06842a5751982f0143cf79b991"
+checksum = "be898c22d3f1f398658925cb31d18871c239cc9b7004ee3d8099d74efc70e1e6"
 dependencies = [
  "build-rs",
  "codegen",
@@ -5270,8 +5271,8 @@ dependencies = [
 
 [[package]]
 name = "miden-protocol"
-version = "0.16.0-rc.6"
-source = "git+https://github.com/inicio-labs/protocol?rev=43de5967965adef9748d2686cacb95038f120694#43de5967965adef9748d2686cacb95038f120694"
+version = "0.16.0-rc.9"
+source = "git+https://github.com/inicio-labs/protocol?rev=f70eb0257cecaa012b108c1970af38bce5572859#f70eb0257cecaa012b108c1970af38bce5572859"
 dependencies = [
  "bech32",
  "fs-err",
@@ -5300,8 +5301,8 @@ dependencies = [
 
 [[package]]
 name = "miden-protocol-build-utils"
-version = "0.16.0-rc.6"
-source = "git+https://github.com/inicio-labs/protocol?rev=43de5967965adef9748d2686cacb95038f120694#43de5967965adef9748d2686cacb95038f120694"
+version = "0.16.0-rc.9"
+source = "git+https://github.com/inicio-labs/protocol?rev=f70eb0257cecaa012b108c1970af38bce5572859#f70eb0257cecaa012b108c1970af38bce5572859"
 dependencies = [
  "fs-err",
  "miden-assembly",
@@ -5370,8 +5371,8 @@ dependencies = [
 
 [[package]]
 name = "miden-standards"
-version = "0.16.0-rc.6"
-source = "git+https://github.com/inicio-labs/protocol?rev=43de5967965adef9748d2686cacb95038f120694#43de5967965adef9748d2686cacb95038f120694"
+version = "0.16.0-rc.9"
+source = "git+https://github.com/inicio-labs/protocol?rev=f70eb0257cecaa012b108c1970af38bce5572859#f70eb0257cecaa012b108c1970af38bce5572859"
 dependencies = [
  "bon",
  "miden-assembly",
@@ -5408,8 +5409,8 @@ dependencies = [
 
 [[package]]
 name = "miden-testing"
-version = "0.16.0-rc.6"
-source = "git+https://github.com/inicio-labs/protocol?rev=43de5967965adef9748d2686cacb95038f120694#43de5967965adef9748d2686cacb95038f120694"
+version = "0.16.0-rc.9"
+source = "git+https://github.com/inicio-labs/protocol?rev=f70eb0257cecaa012b108c1970af38bce5572859#f70eb0257cecaa012b108c1970af38bce5572859"
 dependencies = [
  "anyhow",
  "itertools 0.15.0",
@@ -5428,8 +5429,8 @@ dependencies = [
 
 [[package]]
 name = "miden-tx"
-version = "0.16.0-rc.6"
-source = "git+https://github.com/inicio-labs/protocol?rev=43de5967965adef9748d2686cacb95038f120694#43de5967965adef9748d2686cacb95038f120694"
+version = "0.16.0-rc.9"
+source = "git+https://github.com/inicio-labs/protocol?rev=f70eb0257cecaa012b108c1970af38bce5572859#f70eb0257cecaa012b108c1970af38bce5572859"
 dependencies = [
  "bon",
  "miden-agglayer",
@@ -5442,8 +5443,8 @@ dependencies = [
 
 [[package]]
 name = "miden-tx-batch"
-version = "0.16.0-rc.6"
-source = "git+https://github.com/inicio-labs/protocol?rev=43de5967965adef9748d2686cacb95038f120694#43de5967965adef9748d2686cacb95038f120694"
+version = "0.16.0-rc.9"
+source = "git+https://github.com/inicio-labs/protocol?rev=f70eb0257cecaa012b108c1970af38bce5572859#f70eb0257cecaa012b108c1970af38bce5572859"
 dependencies = [
  "miden-processor",
  "miden-protocol",

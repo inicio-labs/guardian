@@ -68,14 +68,14 @@ dependency, so the prototype will not compile without these entries.
 miden-multisig-client = { git = "https://github.com/inicio-labs/guardian", branch = "vaibhav/eip712-multisig", package = "miden-multisig-client" }
 
 [patch.crates-io]
-miden-agglayer = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
-miden-block-prover = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
-miden-protocol = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
-miden-protocol-build-utils = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
-miden-standards = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
-miden-testing = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
-miden-tx = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
-miden-tx-batch = { git = "https://github.com/inicio-labs/protocol", rev = "43de5967965adef9748d2686cacb95038f120694" }
+miden-agglayer = { git = "https://github.com/inicio-labs/protocol", rev = "f70eb0257cecaa012b108c1970af38bce5572859" }
+miden-block-prover = { git = "https://github.com/inicio-labs/protocol", rev = "f70eb0257cecaa012b108c1970af38bce5572859" }
+miden-protocol = { git = "https://github.com/inicio-labs/protocol", rev = "f70eb0257cecaa012b108c1970af38bce5572859" }
+miden-protocol-build-utils = { git = "https://github.com/inicio-labs/protocol", rev = "f70eb0257cecaa012b108c1970af38bce5572859" }
+miden-standards = { git = "https://github.com/inicio-labs/protocol", rev = "f70eb0257cecaa012b108c1970af38bce5572859" }
+miden-testing = { git = "https://github.com/inicio-labs/protocol", rev = "f70eb0257cecaa012b108c1970af38bce5572859" }
+miden-tx = { git = "https://github.com/inicio-labs/protocol", rev = "f70eb0257cecaa012b108c1970af38bce5572859" }
+miden-tx-batch = { git = "https://github.com/inicio-labs/protocol", rev = "f70eb0257cecaa012b108c1970af38bce5572859" }
 ```
 
 This extra patch is only needed while the protocol change remains on the Inicio
