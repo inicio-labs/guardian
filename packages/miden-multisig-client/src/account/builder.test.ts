@@ -3,6 +3,7 @@ import { createMultisigAccount, validateMultisigConfig } from './builder.js';
 import { GUARDED_MULTISIG_ACCOUNT_COMPONENT_MASM } from './masm/account-components/auth.js';
 import {
   EIP712_LIBRARY_MASM,
+  EIP712_MULTISIG_V1_TRANSACTION_SUMMARY_LIBRARY_MASM,
   MULTISIG_LIBRARY_MASM,
   SIGNATURE_LIBRARY_MASM,
 } from './masm/libraries/auth.js';
@@ -125,10 +126,14 @@ describe('createMultisigAccount', () => {
 
     expect(authBuilder.buildLibrary.mock.calls).toEqual([
       ['guardian_sdk::auth::eip712', EIP712_LIBRARY_MASM],
+      [
+        'guardian_sdk::auth::eip712_multisig_v1_transaction_summary',
+        EIP712_MULTISIG_V1_TRANSACTION_SUMMARY_LIBRARY_MASM,
+      ],
       ['guardian_sdk::auth::signature', SIGNATURE_LIBRARY_MASM],
       ['guardian_sdk::auth::multisig', MULTISIG_LIBRARY_MASM],
     ]);
-    expect(authBuilder.linkStaticLibrary).toHaveBeenCalledTimes(3);
+    expect(authBuilder.linkStaticLibrary).toHaveBeenCalledTimes(4);
     expect(authBuilder.compileAccountComponentCode).toHaveBeenCalledWith(
       GUARDED_MULTISIG_ACCOUNT_COMPONENT_MASM,
     );
@@ -149,8 +154,8 @@ describe('createMultisigAccount', () => {
       'http://localhost:57291',
     );
 
-    expect(authBuilder.buildLibrary).toHaveBeenCalledTimes(3);
-    expect(authBuilder.linkStaticLibrary).toHaveBeenCalledTimes(3);
+    expect(authBuilder.buildLibrary).toHaveBeenCalledTimes(4);
+    expect(authBuilder.linkStaticLibrary).toHaveBeenCalledTimes(4);
     expect(authBuilder.compileAccountComponentCode).toHaveBeenCalledWith(
       GUARDED_MULTISIG_ACCOUNT_COMPONENT_MASM,
     );

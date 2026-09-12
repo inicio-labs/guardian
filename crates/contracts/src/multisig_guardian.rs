@@ -379,7 +379,7 @@ mod tests {
     }
 
     #[test]
-    fn test_browser_deterministic_account_matches_rust_builder() {
+    fn test_deterministic_account_identity() {
         let signer_commitment =
             Word::from_hex("0x260a375ca01f1f05cd7bf22298b40c47290fc09f209011d39049b7f2ef61387b")
                 .expect("signer commitment");
@@ -393,13 +393,10 @@ mod tests {
             .build()
             .expect("account");
 
-        // Cross-SDK parity: the TypeScript builder must derive these same identity
-        // values from the same pinned miden-standards version; regenerate both if
-        // the pin changes.
-        assert_eq!(account.id().to_hex(), "0xe4af586157fca1014b001dcb1becc0");
+        assert_eq!(account.id().to_hex(), "0xc723135eb531f08126d91c69334a1f");
         assert_eq!(
             account.to_commitment().into_hex(),
-            "0x66b1dd5c85cd6cea17732adf4f1bb286e3819d38c7efa38863a22bac51369bdd"
+            "0x928d40d3344ec86a17134580a10f8b1cedb5a4e0f83be34d10035aca84ddda0b"
         );
     }
 }

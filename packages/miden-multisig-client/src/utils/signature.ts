@@ -1,11 +1,21 @@
 import { AdviceMap, Felt, FeltArray, Poseidon2, Signature, Word } from '@miden-sdk/miden-sdk';
 import * as midenSdk from '@miden-sdk/miden-sdk';
+import { keccak_256 } from '@noble/hashes/sha3.js';
 import { EcdsaFormat } from './ecdsa.js';
-import { hexToBytes, normalizeHexWord } from './encoding.js';
+import { bytesToHex, hexToBytes, normalizeHexWord } from './encoding.js';
+import { wordToBytes } from './word.js';
 import type { ProposalSignatureEntry, SignatureScheme } from '../types.js';
 
 export const ECDSA_AUTH_SCHEME_ID = 1;
 export const FALCON_AUTH_SCHEME_ID = 2;
+
+const EIP712_DOMAIN_SEPARATOR = hexToBytes(
+  '07f3115aeaeccab9cf0aa41a1a458ba268b84547c94a409bdf33017fd806aae8',
+);
+const EIP712_TRANSACTION_TYPE_HASH = hexToBytes(
+  'd46cfcb2f81cad54423e731d564bb1a26060c1fea01fff7f86a0cd796caf2b63',
+);
+const EIP712_SIGNATURE_KEY_DOMAIN_HEX = `0x${'4549503731320000'}${'00'.repeat(24)}`;
 
 export function authSchemeId(scheme: SignatureScheme): number {
   return scheme === 'ecdsa' ? ECDSA_AUTH_SCHEME_ID : FALCON_AUTH_SCHEME_ID;
@@ -43,6 +53,34 @@ export function buildSignatureAdviceEntry(
   return { key, values: signature.toPreparedSignature(message) };
 }
 
+export function eip712TransactionSummaryDigest(txSummaryHash: Word): Uint8Array {
+  const structHash = keccak_256(
+    new Uint8Array([...EIP712_TRANSACTION_TYPE_HASH, ...wordToBytes(txSummaryHash)]),
+  );
+  return keccak_256(
+    new Uint8Array([0x19, 0x01, ...EIP712_DOMAIN_SEPARATOR, ...structHash]),
+  );
+}
+
+export function buildEip712SignatureAdviceEntry(
+  pubkeyCommitment: Word,
+  txSummaryHash: Word,
+  signature: Signature,
+): { key: Word; values: Felt[] } {
+  const digest = Word.fromHex(bytesToHex(eip712TransactionSummaryDigest(txSummaryHash)));
+  const rawKey = Poseidon2.hashElements(
+    new FeltArray([...pubkeyCommitment.toFelts(), ...txSummaryHash.toFelts()]),
+  );
+  const key = Poseidon2.hashElements(
+    new FeltArray([
+      ...rawKey.toFelts(),
+      ...Word.fromHex(EIP712_SIGNATURE_KEY_DOMAIN_HEX).toFelts(),
+    ]),
+  );
+
+  return { key, values: signature.toPreparedSignature(digest) };
+}
+
 /** Rejects unrecoverable ECDSA signatures before entering WASM. */
 export function assertEcdsaSignatureRecoverable(
   signatureHex: string,
@@ -53,6 +91,30 @@ export function assertEcdsaSignatureRecoverable(
   try {
     recovered = EcdsaFormat.recoverCompressedPublicKeyHex(
       hexToBytes(messageHex),
+      hexToBytes(signatureHex),
+    );
+  } catch (error) {
+    throw new Error(`ECDSA signature does not recover a public key: ${String(error)}`);
+  }
+
+  const expected = EcdsaFormat.compressPublicKey(expectedPublicKeyHex);
+  if (recovered.toLowerCase() !== expected.toLowerCase()) {
+    throw new Error(
+      `ECDSA signature recovers public key ${recovered}, which does not match the expected ${expected}`,
+    );
+  }
+}
+
+/** Rejects an unrecoverable ECDSA prehash signature before entering WASM. */
+export function assertEcdsaPrehashSignatureRecoverable(
+  signatureHex: string,
+  prehashHex: string,
+  expectedPublicKeyHex: string,
+): void {
+  let recovered: string;
+  try {
+    recovered = EcdsaFormat.recoverCompressedPublicKeyFromPrehash(
+      hexToBytes(prehashHex),
       hexToBytes(signatureHex),
     );
   } catch (error) {

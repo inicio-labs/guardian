@@ -6,20 +6,24 @@ import { Word, type Account } from '@miden-sdk/miden-sdk';
  * These values use the Miden SDK `Word.toHex()` / `Word.fromHex()` encoding, which is the
  * representation used by the TypeScript client when writing and reading storage map keys.
  *
- * Source of truth:
- * `cargo run --quiet --example procedure_roots -p miden-multisig-client -- --json`
- *
- * Note: the Rust example also prints `rust_hex` values for `procedures.rs`. Those are a different
- * human-readable encoding and should not be copied into this table.
+ * These roots are sourced from
+ * `cargo run --quiet --example procedure_roots -p miden-multisig-client -- --json`.
  */
 export const PROCEDURE_ROOTS = {
   update_signers: '0xa261cfd3c8791ac5abe1e78e14eade2f20789d73ab1c23c430418de59bc3380e',
   update_procedure_threshold: '0x97587c61d49313b1d5a3c8b7437e0080e67ed9bd9d3e7206bcae562f934ccd03',
-  auth_tx: '0xa7c5154bed43cd6bea701d3550ba9c3fbfeb524a2f4439985cd7ce48994001a4',
+  auth_tx: '0x27446960c72463d647d560c573980568fdf50463752fc0d9a111eda3760d74b9',
   update_guardian: '0x0a614ff7c81a561cbd2a4c2d9482031a7a841ca5de33349daed23a9d871b3675',
   send_asset: '0x595bc83258726a66bd904912cfd5186c07cbd902dfbc115b7d6bc8105efc57e3',
   receive_asset: '0x34a56dd18f6fe5aab63198b9dcfc6467e793ebabb37d56b994b902504635da13',
 } as const;
+
+/**
+ * The browser SDK links the patched auth modules under `guardian_sdk::auth` because its bundled
+ * Miden package predates those module declarations. The code is equivalent but has a distinct root.
+ */
+export const BROWSER_AUTH_TX_ROOT =
+  '0x723addb596afd2b56c09ecde616daeacca3280a146db8a8e7708db4bae143fc6';
 
 const LEGACY_RAW_AUTH_TX_ROOT =
   '0xa6aa6f69d9358535272ba433cd48d20628a5c69598e00c6dd01a22e83a5f15df';
@@ -50,8 +54,9 @@ export function assertSupportedMultisigAccount(account: Account): void {
   const hasEip712Authenticator = code.hasProcedure(
     Word.fromHex(getProcedureRoot('auth_tx')),
   );
+  const hasBrowserEip712Authenticator = code.hasProcedure(Word.fromHex(BROWSER_AUTH_TX_ROOT));
   const hasLegacyAuthenticator = code.hasProcedure(Word.fromHex(LEGACY_RAW_AUTH_TX_ROOT));
-  if (hasEip712Authenticator && !hasLegacyAuthenticator) {
+  if ((hasEip712Authenticator || hasBrowserEip712Authenticator) && !hasLegacyAuthenticator) {
     return;
   }
 

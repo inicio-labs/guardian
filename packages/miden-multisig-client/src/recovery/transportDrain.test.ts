@@ -388,10 +388,11 @@ describe('drainPrivateNoteBacklog', () => {
  * `settings` API runs values through the JS<->WASM serde codec, which is NOT
  * the store's raw encoding (seeding through it corrupts the cursor), so the
  * cursor tests read/write the IndexedDB row directly. Schema coupling, kept
- * minimal: store `settings`, keyPath `key`, `value` holds the raw big-endian
- * u64 bytes — the same representation the Rust cursor test pins.
+ * minimal: store `settings`, keyPath `[scope, key]`, `value` holds the raw
+ * big-endian u64 bytes — the same representation the Rust cursor test pins.
  */
 const CURSOR_KEY = 'note_transport_cursor';
+const GLOBAL_SETTINGS_SCOPE = 0;
 
 async function withSettingsStore<T>(
   mode: IDBTransactionMode,
@@ -414,12 +415,14 @@ async function withSettingsStore<T>(
 }
 
 async function seedRawCursor(bytes: Uint8Array): Promise<void> {
-  await withSettingsStore('readwrite', (store) => store.put({ key: CURSOR_KEY, value: bytes }));
+  await withSettingsStore('readwrite', (store) =>
+    store.put({ scope: GLOBAL_SETTINGS_SCOPE, key: CURSOR_KEY, value: bytes }),
+  );
 }
 
 async function readRawCursor(): Promise<Uint8Array | undefined> {
   const row = await withSettingsStore<{ value?: Uint8Array } | undefined>('readonly', (store) =>
-    store.get(CURSOR_KEY),
+    store.get([GLOBAL_SETTINGS_SCOPE, CURSOR_KEY]),
   );
   return row?.value;
 }

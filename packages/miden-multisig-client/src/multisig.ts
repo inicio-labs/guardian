@@ -69,12 +69,16 @@ import {
 import { noteFromBase64, noteToBase64 } from './utils/encoding.js';
 import {
   base64ToUint8Array,
+  bytesToHex,
   uint8ArrayToBase64,
   normalizeHexWord,
 } from './utils/encoding.js';
 import {
+  assertEcdsaPrehashSignatureRecoverable,
   assertEcdsaSignatureRecoverable,
+  buildEip712SignatureAdviceEntry,
   buildSignatureAdviceEntry,
+  eip712TransactionSummaryDigest,
   normalizeSignerCommitment,
   signatureHexToBytes,
   tryComputeEcdsaCommitmentHex,
@@ -2071,31 +2075,36 @@ export class Multisig {
       }
 
       const signerCommitment = Word.fromHex(signerCommitmentHex);
-      if (
+      const usesEip712 =
         cosignerSig.signature.scheme === 'ecdsa' &&
-        cosignerSig.signature.messageFormat === 'eip712'
-      ) {
-        throw new Error(
-          'EIP-712 proposal execution requires a Miden SDK WASM build containing the extended multisig authenticator',
-        );
-      }
+        cosignerSig.signature.messageFormat === 'eip712';
       const sigBytes = signatureHexToBytes(
         cosignerSig.signature.signature,
         cosignerSig.signature.scheme,
       );
       const signature = Signature.deserialize(sigBytes);
       if (cosignerSig.signature.scheme === 'ecdsa' && ecdsaPublicKey) {
-        assertEcdsaSignatureRecoverable(
-          cosignerSig.signature.signature,
-          normalizedTxCommitmentHex,
-          ecdsaPublicKey,
-        );
+        if (usesEip712) {
+          assertEcdsaPrehashSignatureRecoverable(
+            cosignerSig.signature.signature,
+            bytesToHex(eip712TransactionSummaryDigest(createTxCommitmentWord())),
+            ecdsaPublicKey,
+          );
+        } else {
+          assertEcdsaSignatureRecoverable(
+            cosignerSig.signature.signature,
+            normalizedTxCommitmentHex,
+            ecdsaPublicKey,
+          );
+        }
       }
-      const { key, values } = buildSignatureAdviceEntry(
-        signerCommitment,
-        createTxCommitmentWord(),
-        signature,
-      );
+      const { key, values } = usesEip712
+        ? buildEip712SignatureAdviceEntry(
+            signerCommitment,
+            createTxCommitmentWord(),
+            signature,
+          )
+        : buildSignatureAdviceEntry(signerCommitment, createTxCommitmentWord(), signature);
       const keyHex = normalizeHexWord(key.toHex());
       if (adviceMapKeys.has(keyHex)) {
         throw new Error(`Duplicate advice-map key detected for proposal ${proposalId}`);
@@ -2234,31 +2243,36 @@ export class Multisig {
       }
 
       const signerCommitment = Word.fromHex(signerCommitmentHex);
-      if (
+      const usesEip712 =
         cosignerSig.signature.scheme === 'ecdsa' &&
-        cosignerSig.signature.messageFormat === 'eip712'
-      ) {
-        throw new Error(
-          'EIP-712 proposal execution requires a Miden SDK WASM build containing the extended multisig authenticator',
-        );
-      }
+        cosignerSig.signature.messageFormat === 'eip712';
       const sigBytes = signatureHexToBytes(
         cosignerSig.signature.signature,
         cosignerSig.signature.scheme,
       );
       const signature = Signature.deserialize(sigBytes);
       if (cosignerSig.signature.scheme === 'ecdsa' && ecdsaPublicKey) {
-        assertEcdsaSignatureRecoverable(
-          cosignerSig.signature.signature,
-          normalizedTxCommitmentHex,
-          ecdsaPublicKey,
-        );
+        if (usesEip712) {
+          assertEcdsaPrehashSignatureRecoverable(
+            cosignerSig.signature.signature,
+            bytesToHex(eip712TransactionSummaryDigest(createTxCommitmentWord())),
+            ecdsaPublicKey,
+          );
+        } else {
+          assertEcdsaSignatureRecoverable(
+            cosignerSig.signature.signature,
+            normalizedTxCommitmentHex,
+            ecdsaPublicKey,
+          );
+        }
       }
-      const { key, values } = buildSignatureAdviceEntry(
-        signerCommitment,
-        createTxCommitmentWord(),
-        signature,
-      );
+      const { key, values } = usesEip712
+        ? buildEip712SignatureAdviceEntry(
+            signerCommitment,
+            createTxCommitmentWord(),
+            signature,
+          )
+        : buildSignatureAdviceEntry(signerCommitment, createTxCommitmentWord(), signature);
       const keyHex = normalizeHexWord(key.toHex());
       if (adviceMapKeys.has(keyHex)) {
         throw new Error(`Duplicate advice-map key detected for proposal ${proposalId}`);

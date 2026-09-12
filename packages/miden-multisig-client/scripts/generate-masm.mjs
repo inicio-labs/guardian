@@ -19,6 +19,11 @@ const masmFiles = [
     generatedPath: ['masm', 'libraries', 'auth.ts'],
   },
   {
+    packagedPath: ['libraries', 'auth', 'eip712_multisig_v1_transaction_summary.masm'],
+    exportName: 'EIP712_MULTISIG_V1_TRANSACTION_SUMMARY_LIBRARY_MASM',
+    generatedPath: ['masm', 'libraries', 'auth.ts'],
+  },
+  {
     packagedPath: ['libraries', 'auth', 'signature.masm'],
     exportName: 'SIGNATURE_LIBRARY_MASM',
     generatedPath: ['masm', 'libraries', 'auth.ts'],

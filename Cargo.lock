@@ -4687,7 +4687,7 @@ dependencies = [
 [[package]]
 name = "miden-agglayer"
 version = "0.16.0-rc.9"
-source = "git+https://github.com/inicio-labs/protocol?rev=f70eb0257cecaa012b108c1970af38bce5572859#f70eb0257cecaa012b108c1970af38bce5572859"
+source = "git+https://github.com/inicio-labs/protocol?rev=54b5cfac5753b2756ea3fbae2d2addca6c38a0ee#54b5cfac5753b2756ea3fbae2d2addca6c38a0ee"
 dependencies = [
  "alloy-sol-types",
  "fs-err",
@@ -4778,7 +4778,7 @@ dependencies = [
 [[package]]
 name = "miden-block-prover"
 version = "0.16.0-rc.9"
-source = "git+https://github.com/inicio-labs/protocol?rev=f70eb0257cecaa012b108c1970af38bce5572859#f70eb0257cecaa012b108c1970af38bce5572859"
+source = "git+https://github.com/inicio-labs/protocol?rev=54b5cfac5753b2756ea3fbae2d2addca6c38a0ee#54b5cfac5753b2756ea3fbae2d2addca6c38a0ee"
 dependencies = [
  "miden-protocol",
  "thiserror 2.0.19",
@@ -5272,7 +5272,7 @@ dependencies = [
 [[package]]
 name = "miden-protocol"
 version = "0.16.0-rc.9"
-source = "git+https://github.com/inicio-labs/protocol?rev=f70eb0257cecaa012b108c1970af38bce5572859#f70eb0257cecaa012b108c1970af38bce5572859"
+source = "git+https://github.com/inicio-labs/protocol?rev=54b5cfac5753b2756ea3fbae2d2addca6c38a0ee#54b5cfac5753b2756ea3fbae2d2addca6c38a0ee"
 dependencies = [
  "bech32",
  "fs-err",
@@ -5302,7 +5302,7 @@ dependencies = [
 [[package]]
 name = "miden-protocol-build-utils"
 version = "0.16.0-rc.9"
-source = "git+https://github.com/inicio-labs/protocol?rev=f70eb0257cecaa012b108c1970af38bce5572859#f70eb0257cecaa012b108c1970af38bce5572859"
+source = "git+https://github.com/inicio-labs/protocol?rev=54b5cfac5753b2756ea3fbae2d2addca6c38a0ee#54b5cfac5753b2756ea3fbae2d2addca6c38a0ee"
 dependencies = [
  "fs-err",
  "miden-assembly",
@@ -5372,7 +5372,7 @@ dependencies = [
 [[package]]
 name = "miden-standards"
 version = "0.16.0-rc.9"
-source = "git+https://github.com/inicio-labs/protocol?rev=f70eb0257cecaa012b108c1970af38bce5572859#f70eb0257cecaa012b108c1970af38bce5572859"
+source = "git+https://github.com/inicio-labs/protocol?rev=54b5cfac5753b2756ea3fbae2d2addca6c38a0ee#54b5cfac5753b2756ea3fbae2d2addca6c38a0ee"
 dependencies = [
  "bon",
  "miden-assembly",
@@ -5410,7 +5410,7 @@ dependencies = [
 [[package]]
 name = "miden-testing"
 version = "0.16.0-rc.9"
-source = "git+https://github.com/inicio-labs/protocol?rev=f70eb0257cecaa012b108c1970af38bce5572859#f70eb0257cecaa012b108c1970af38bce5572859"
+source = "git+https://github.com/inicio-labs/protocol?rev=54b5cfac5753b2756ea3fbae2d2addca6c38a0ee#54b5cfac5753b2756ea3fbae2d2addca6c38a0ee"
 dependencies = [
  "anyhow",
  "itertools 0.15.0",
@@ -5430,7 +5430,7 @@ dependencies = [
 [[package]]
 name = "miden-tx"
 version = "0.16.0-rc.9"
-source = "git+https://github.com/inicio-labs/protocol?rev=f70eb0257cecaa012b108c1970af38bce5572859#f70eb0257cecaa012b108c1970af38bce5572859"
+source = "git+https://github.com/inicio-labs/protocol?rev=54b5cfac5753b2756ea3fbae2d2addca6c38a0ee#54b5cfac5753b2756ea3fbae2d2addca6c38a0ee"
 dependencies = [
  "bon",
  "miden-agglayer",
@@ -5444,7 +5444,7 @@ dependencies = [
 [[package]]
 name = "miden-tx-batch"
 version = "0.16.0-rc.9"
-source = "git+https://github.com/inicio-labs/protocol?rev=f70eb0257cecaa012b108c1970af38bce5572859#f70eb0257cecaa012b108c1970af38bce5572859"
+source = "git+https://github.com/inicio-labs/protocol?rev=54b5cfac5753b2756ea3fbae2d2addca6c38a0ee#54b5cfac5753b2756ea3fbae2d2addca6c38a0ee"
 dependencies = [
  "miden-processor",
  "miden-protocol",

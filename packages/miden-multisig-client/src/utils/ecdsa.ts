@@ -101,6 +101,19 @@ export class EcdsaFormat {
    * canonical `0/1` or the Ethereum-style `27/28`.
    */
   static recoverCompressedPublicKeyHex(messageBytes: Uint8Array, signature: Uint8Array): string {
+    return EcdsaFormat.recoverCompressedPublicKeyFromPrehash(
+      keccak_256(messageBytes),
+      signature,
+    );
+  }
+
+  static recoverCompressedPublicKeyFromPrehash(
+    prehash: Uint8Array,
+    signature: Uint8Array,
+  ): string {
+    if (prehash.length !== 32) {
+      throw new Error(`ECDSA public-key recovery requires a 32-byte prehash, got ${prehash.length}`);
+    }
     if (signature.length !== ECDSA_SIGNATURE_WITH_RECOVERY_BYTE_LENGTH) {
       throw new Error(
         `ECDSA public-key recovery requires a ${ECDSA_SIGNATURE_WITH_RECOVERY_BYTE_LENGTH}-byte signature (r||s||v), got ${signature.length}`,
@@ -118,10 +131,9 @@ export class EcdsaFormat {
     }
 
     const compact = signature.slice(0, ECDSA_SIGNATURE_BYTE_LENGTH);
-    const msgHash = keccak_256(messageBytes);
     const recovered = secp256k1.Signature.fromCompact(compact)
       .addRecoveryBit(recoveryBit)
-      .recoverPublicKey(msgHash);
+      .recoverPublicKey(prehash);
     return bytesToHex(recovered.toRawBytes(true));
   }
 }

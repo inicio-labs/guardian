@@ -17,19 +17,18 @@ Miden multisig accounts store their authentication logic on-chain, but **their s
 ### EIP-712 status
 
 Proposal import/export and Guardian transport preserve the per-ECDSA-signature
-`messageFormat` (`'raw'` or `'eip712'`). The current browser Miden WASM does
-not yet expose EIP-712 advice preparation, so browser execution fails closed
-when an EIP-712 signature is present. The package vendors the patched
-authentication modules, and browser-created accounts therefore use the same
-EIP-712-capable root as Rust. Normal browser signing methods create raw
-signatures, which remain valid for these accounts. Use the Rust execution path
-for the first EIP-712 prototype. Original raw-only 0.16 accounts are not
-supported and must be recreated.
+`messageFormat` (`'raw'` or `'eip712'`). The package vendors the patched
+authentication modules and prepares EIP-712 advice in the browser client.
+Normal browser signing methods continue creating raw signatures, which remain
+valid for these accounts. Browser- and Rust-created accounts currently have
+different authentication procedure roots because the browser SDK predates the
+new standard-library modules; the client recognizes both current roots.
+Original raw-only 0.16 accounts are not supported and must be recreated.
 
 ## Installation
 
 ```bash
-npm install @openzeppelin/miden-multisig-client @miden-sdk/miden-sdk@0.16.0-rc.5
+npm install @openzeppelin/miden-multisig-client @miden-sdk/miden-sdk@0.16.0-rc.6
 ```
 
 > **Why the peer version is exact**: no stable `0.16.0` is published, so a

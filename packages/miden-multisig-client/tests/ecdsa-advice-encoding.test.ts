@@ -4,8 +4,11 @@ import { keccak_256 } from '@noble/hashes/sha3.js';
 import { describe, expect, it } from 'vitest';
 
 import {
+  assertEcdsaPrehashSignatureRecoverable,
   assertEcdsaSignatureRecoverable,
+  buildEip712SignatureAdviceEntry,
   buildSignatureAdviceEntry,
+  eip712TransactionSummaryDigest,
 } from '../src/utils/signature.js';
 import { bytesToHex, hexToBytes } from '../src/utils/encoding.js';
 
@@ -135,5 +138,72 @@ describe('ECDSA recoverability guard', () => {
     const flipped = signatureHex().slice(0, -2) + (signatureHex().endsWith('00') ? '01' : '00');
 
     expect(() => assertEcdsaSignatureRecoverable(flipped, MESSAGE_HEX, publicKeyHex)).toThrow();
+  });
+});
+
+describe('EIP-712 transaction-summary advice', () => {
+  const txSummaryHash = () =>
+    new Word(
+      new BigUint64Array([
+        0x0123_4567_89ab_cdefn,
+        0x1020_3040_5060_7080n,
+        0x0f1e_2d3c_4b5a_6978n,
+        0x1122_3344_5566_7788n,
+      ]),
+    );
+
+  it('matches the protocol digest vector', () => {
+    expect(bytesToHex(eip712TransactionSummaryDigest(txSummaryHash()))).toBe(
+      '0x03bc3b7d14f9c81dfa715b49b2297f070f91b4223adb2f6afe7d68b91122451d',
+    );
+  });
+
+  it('accepts the Ledger Speculos prehash signature without hashing it again', () => {
+    const publicKeyHex =
+      '0x0437b0bb7a8288d38ed49a524b5dc98cff3eb5ca824c9f9dc0dfdb3d9cd600f299a6179912b7451c09896c4098eca7ce6b2e58330672795e847c4d6af44e024230';
+    const signatureHex =
+      '0x3a260929a57fc23dc0b35b3bd41aa66df2d6cf0aff4914e5caf25f65f2f9f15b2fedb745401497982d8ee305c490af99440edabfd17ada7acfd527b7342f54b400';
+    const digestHex = '0xe24fddd9b9535fa24adf94097b68c4f00bbed14ee6970cd41d62a62b5b6a07b3';
+
+    expect(() =>
+      assertEcdsaPrehashSignatureRecoverable(signatureHex, digestHex, publicKeyHex),
+    ).not.toThrow();
+    expect(() => assertEcdsaSignatureRecoverable(signatureHex, digestHex, publicKeyHex)).toThrow();
+  });
+
+  it('builds the domain-separated key and prepared ECDSA witness', () => {
+    const privateKey = hexToBytes(PRIVATE_KEY_HEX);
+    const digest = eip712TransactionSummaryDigest(txSummaryHash());
+    const compact = secp256k1.sign(digest, privateKey, { prehash: false });
+    const serialized = new Uint8Array(66);
+    serialized[0] = ECDSA_AUTH_SCHEME_ID;
+    serialized.set(compact.toCompactRawBytes(), 1);
+    serialized[65] = compact.recovery;
+
+    const publicKeyHex = bytesToHex(secp256k1.getPublicKey(privateKey, true));
+    expect(() =>
+      assertEcdsaPrehashSignatureRecoverable(
+        bytesToHex(serialized.slice(1)),
+        bytesToHex(digest),
+        publicKeyHex,
+      ),
+    ).not.toThrow();
+    const commitment = Word.fromHex(commitmentHex(publicKeyHex));
+    const { key, values } = buildEip712SignatureAdviceEntry(
+      commitment,
+      txSummaryHash(),
+      Signature.deserialize(serialized),
+    );
+
+    const rawKey = Poseidon2.hashElements(
+      new FeltArray([...Word.fromHex(commitmentHex(publicKeyHex)).toFelts(), ...txSummaryHash().toFelts()]),
+    );
+    const domain = new Word(new BigUint64Array([0x3231_3750_4945n, 0n, 0n, 0n]));
+    const expectedKey = Poseidon2.hashElements(
+      new FeltArray([...rawKey.toFelts(), ...domain.toFelts()]),
+    );
+
+    expect(key.toHex()).toBe(expectedKey.toHex());
+    expect(values).toHaveLength(32);
   });
 });

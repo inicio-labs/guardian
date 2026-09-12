@@ -6,10 +6,11 @@ import { AccountComponent, MockWasmWebClient } from '@miden-sdk/miden-sdk';
 import { GUARDED_MULTISIG_ACCOUNT_COMPONENT_MASM } from '../src/account/masm/account-components/auth.js';
 import {
   EIP712_LIBRARY_MASM,
+  EIP712_MULTISIG_V1_TRANSACTION_SUMMARY_LIBRARY_MASM,
   MULTISIG_LIBRARY_MASM,
   SIGNATURE_LIBRARY_MASM,
 } from '../src/account/masm/libraries/auth.js';
-import { PROCEDURE_ROOTS } from '../src/procedures.js';
+import { BROWSER_AUTH_TX_ROOT, PROCEDURE_ROOTS } from '../src/procedures.js';
 
 describe('generated MASM constants', () => {
   it.each([
@@ -22,6 +23,11 @@ describe('generated MASM constants', () => {
       name: 'EIP-712 library',
       generated: EIP712_LIBRARY_MASM,
       sourcePath: '../masm/libraries/auth/eip712.masm',
+    },
+    {
+      name: 'EIP-712 transaction-summary adapter',
+      generated: EIP712_MULTISIG_V1_TRANSACTION_SUMMARY_LIBRARY_MASM,
+      sourcePath: '../masm/libraries/auth/eip712_multisig_v1_transaction_summary.masm',
     },
     {
       name: 'signature library',
@@ -42,6 +48,10 @@ describe('generated MASM constants', () => {
     const builder = await client.createCodeBuilder();
     const libraries = [
       ['guardian_sdk::auth::eip712', EIP712_LIBRARY_MASM],
+      [
+        'guardian_sdk::auth::eip712_multisig_v1_transaction_summary',
+        EIP712_MULTISIG_V1_TRANSACTION_SUMMARY_LIBRARY_MASM,
+      ],
       ['guardian_sdk::auth::signature', SIGNATURE_LIBRARY_MASM],
       ['guardian_sdk::auth::multisig', MULTISIG_LIBRARY_MASM],
     ] as const;
@@ -60,7 +70,7 @@ describe('generated MASM constants', () => {
       PROCEDURE_ROOTS.update_procedure_threshold,
     );
     expect(component.getProcedureHash('auth_tx_guarded_multisig')).toBe(
-      PROCEDURE_ROOTS.auth_tx,
+      BROWSER_AUTH_TX_ROOT,
     );
     expect(component.getProcedureHash('update_guardian_public_key')).toBe(
       PROCEDURE_ROOTS.update_guardian,

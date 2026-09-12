@@ -638,7 +638,13 @@ mod tests {
             .unwrap();
 
         let raw_key = signature_advice_key(commitment, tx_summary_commitment);
-        let expected_key = Hasher::merge(&[raw_key, Word::from([0x3231_3745u32; 4])]);
+        let domain = Word::new([
+            Felt::new_unchecked(0x3231_3750_4945),
+            Felt::ZERO,
+            Felt::ZERO,
+            Felt::ZERO,
+        ]);
+        let expected_key = Hasher::merge(&[raw_key, domain]);
         assert_eq!(key, expected_key);
         assert_ne!(key, raw_key);
         assert_eq!(values.len(), 32);

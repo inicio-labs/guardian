@@ -17,6 +17,7 @@ import { buildMultisigStorageSlots, buildGuardianStorageSlots } from './storage.
 import { GUARDED_MULTISIG_ACCOUNT_COMPONENT_MASM } from './masm/account-components/auth.js';
 import {
   EIP712_LIBRARY_MASM,
+  EIP712_MULTISIG_V1_TRANSACTION_SUMMARY_LIBRARY_MASM,
   MULTISIG_LIBRARY_MASM,
   SIGNATURE_LIBRARY_MASM,
 } from './masm/libraries/auth.js';
@@ -24,6 +25,10 @@ import { normalizeSignerCommitment } from '../utils/signature.js';
 
 const AUTH_LIBRARY_SOURCES = [
   ['guardian_sdk::auth::eip712', EIP712_LIBRARY_MASM],
+  [
+    'guardian_sdk::auth::eip712_multisig_v1_transaction_summary',
+    EIP712_MULTISIG_V1_TRANSACTION_SUMMARY_LIBRARY_MASM,
+  ],
   ['guardian_sdk::auth::signature', SIGNATURE_LIBRARY_MASM],
   ['guardian_sdk::auth::multisig', MULTISIG_LIBRARY_MASM],
 ] as const;

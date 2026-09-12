@@ -59,7 +59,7 @@ vi.mock('@miden-sdk/miden-sdk', () => {
           code: () => ({
             hasProcedure: (root: { toHex: () => string }) =>
               root.toHex() ===
-              '0xa7c5154bed43cd6bea701d3550ba9c3fbfeb524a2f4439985cd7ce48994001a4',
+              '0x27446960c72463d647d560c573980568fdf50463752fc0d9a111eda3760d74b9',
           }),
           vault: () => createMockVault([
             { faucetId: '0xfaucet1', amount: 1000n },

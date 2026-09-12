@@ -181,13 +181,24 @@ vi.mock('./utils/signature.js', async () => {
   const actual = await vi.importActual<typeof import('./utils/signature.js')>('./utils/signature.js');
   return {
     ...actual,
+    buildEip712SignatureAdviceEntry: vi.fn().mockImplementation(
+      (signerCommitment: { toHex?: () => string }) => ({
+        key: {
+          toHex: () =>
+            signerCommitment.toHex ? signerCommitment.toHex() : '0x' + 'e'.repeat(64),
+        },
+        values: [1, 2, 3],
+      }),
+    ),
     buildSignatureAdviceEntry: vi.fn().mockImplementation((signerCommitment: { toHex?: () => string }) => ({
       key: { toHex: () => signerCommitment.toHex ? signerCommitment.toHex() : '0x' + 'f'.repeat(64) },
       values: [1, 2, 3],
     })),
+    eip712TransactionSummaryDigest: vi.fn(() => new Uint8Array(32)),
     signatureHexToBytes: vi.fn((hex: string) => new Uint8Array([0, 1, 2, 3])),
     // These tests use synthetic signature bytes to exercise advice routing;
     // recoverability is covered by tests/ecdsa-advice-encoding.test.ts.
+    assertEcdsaPrehashSignatureRecoverable: vi.fn(),
     assertEcdsaSignatureRecoverable: vi.fn(),
   };
 });
@@ -3426,8 +3437,15 @@ describe('Multisig', () => {
 
   describe('createTransactionProposalRequest', () => {
     it('should return a ready non-switch_guardian request without executing it', async () => {
-      const { buildSignatureAdviceEntry, signatureHexToBytes } = await import('./utils/signature.js');
+      const {
+        assertEcdsaPrehashSignatureRecoverable,
+        buildEip712SignatureAdviceEntry,
+        buildSignatureAdviceEntry,
+        signatureHexToBytes,
+      } = await import('./utils/signature.js');
       vi.mocked(signatureHexToBytes).mockClear();
+      vi.mocked(assertEcdsaPrehashSignatureRecoverable).mockClear();
+      vi.mocked(buildEip712SignatureAdviceEntry).mockClear();
       vi.mocked(buildSignatureAdviceEntry).mockClear();
 
       const config = {
@@ -3477,6 +3495,7 @@ describe('Multisig', () => {
               scheme: 'ecdsa',
               signature: cosignerSignature,
               publicKey: cosignerPubkey,
+              messageFormat: 'eip712',
             },
             timestamp: '2024-01-01T00:00:00Z',
           },
@@ -3539,14 +3558,17 @@ describe('Multisig', () => {
         ackSignature,
         'ecdsa',
       );
-      expect(vi.mocked(buildSignatureAdviceEntry)).toHaveBeenNthCalledWith(
-        1,
+      expect(vi.mocked(buildEip712SignatureAdviceEntry)).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
         expect.anything(),
       );
-      expect(vi.mocked(buildSignatureAdviceEntry)).toHaveBeenNthCalledWith(
-        2,
+      expect(vi.mocked(assertEcdsaPrehashSignatureRecoverable)).toHaveBeenCalledWith(
+        cosignerSignature,
+        expect.stringMatching(/^0x[0-9a-f]{64}$/),
+        cosignerPubkey,
+      );
+      expect(vi.mocked(buildSignatureAdviceEntry)).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
         expect.anything(),
@@ -3554,9 +3576,12 @@ describe('Multisig', () => {
       // The advice payload now comes from the SDK, so the routing assertion is
       // the commitment each entry is keyed on: cosigner first, GUARDIAN ack
       // second. Swapping the two entries must not pass.
-      const adviceCalls = vi.mocked(buildSignatureAdviceEntry).mock.calls;
-      expect(adviceCalls[0][0].toHex()).toBe(config.signerCommitments[0]);
-      expect(adviceCalls[1][0].toHex()).toBe(config.guardianCommitment);
+      expect(vi.mocked(buildEip712SignatureAdviceEntry).mock.calls[0][0].toHex()).toBe(
+        config.signerCommitments[0],
+      );
+      expect(vi.mocked(buildSignatureAdviceEntry).mock.calls[0][0].toHex()).toBe(
+        config.guardianCommitment,
+      );
       expect(mockWebClient.executeTransaction).not.toHaveBeenCalled();
       expect(mockWebClient.proveTransaction).not.toHaveBeenCalled();
       expect(mockWebClient.submitProvenTransaction).not.toHaveBeenCalled();
